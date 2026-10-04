@@ -11,15 +11,16 @@ namespace Crm.Mcp.Tools;
 public sealed class DealTools(DealService deals, CrmFormatter format)
 {
     [McpServerTool(Name = "list_deals", Title = "Список сделок", ReadOnly = true, OpenWorld = false)]
-    [Description("Список сделок, отсортированный по сумме. Без stage возвращает только открытые сделки (не Won и не Lost); чтобы увидеть выигранные или проигранные, передай stage.")]
+    [Description("Список сделок, отсортированный по сумме. Без stage возвращает только открытые сделки (не Won и не Lost); чтобы увидеть выигранные или проигранные, передай stage. Сделки конкретного менеджера — через owner, свои — через onlyMine.")]
     public async Task<string> ListDeals(
         [Description("Фильтр по стадии. Не указывай, чтобы получить все открытые сделки")] DealStage? stage = null,
         [Description("true — только сделки текущего пользователя")] bool onlyMine = false,
+        [Description("Ответственный: имя, фамилия или email, например «Анна» или «Смирнова». Не передавай вместе с onlyMine")] string? owner = null,
         [Description("Поиск по названию сделки или компании")] string? query = null,
         [Description("Сколько сделок вернуть, от 1 до 100")] int limit = 20,
         CancellationToken cancellationToken = default)
     {
-        var filter = new DealFilter(stage, onlyMine, query);
+        var filter = new DealFilter(stage, onlyMine, query, owner);
         var found = await deals.ListAsync(filter, limit, cancellationToken);
         return format.DealList(found, filter);
     }
@@ -92,12 +93,24 @@ public sealed class DealTools(DealService deals, CrmFormatter format)
         return format.Pipeline(summary, onlyMine);
     }
 
+    [McpServerTool(Name = "list_stale_deals", Title = "Зависшие сделки", ReadOnly = true, OpenWorld = false)]
+    [Description("Открытые сделки, по которым давно нет движения: стадия не менялась и в истории не было записей дольше inactiveDays дней. Сначала самые давно забытые, для каждой — сколько дней без движения. Без inactiveDays берётся тот же порог, что в get_pipeline_summary. Только чтение, доступно всем.")]
+    public async Task<string> ListStaleDeals(
+        [Description("Сколько дней без движения считать зависанием, от 7 до 365. Не указывай, чтобы взять порог из сводки по воронке")] int? inactiveDays = null,
+        [Description("true — только сделки текущего пользователя")] bool onlyMine = false,
+        [Description("Ответственный: имя, фамилия или email. Не передавай вместе с onlyMine")] string? owner = null,
+        CancellationToken cancellationToken = default)
+    {
+        var list = await deals.ListStaleAsync(inactiveDays, onlyMine, owner, cancellationToken);
+        return format.StaleDealList(list);
+    }
+
     // Пример инструмента, который вообще не виден обычным менеджерам в HTTP-режиме:
     // [Authorize] проверяется фильтрами MCP SDK (AddAuthorizationFilters) и убирает инструмент из tools/list.
     // Права дополнительно проверяет сервис — так они соблюдаются и в stdio, где HTTP-авторизации нет.
     [Authorize(Roles = nameof(UserRole.Admin))]
     [McpServerTool(Name = "close_stale_deals", Title = "Закрыть зависшие сделки", Destructive = true, Idempotent = false, OpenWorld = false)]
-    [Description("Массово переводит в Lost открытые сделки, по которым не было движения дольше inactiveDays дней. Работает в два шага: вызов без confirmationToken только показывает список и выдаёт токен; изменения применяются при повторном вызове с этим токеном. Перед вторым вызовом обязательно покажи список пользователю и получи явное согласие.")]
+    [Description("Массово переводит в Lost открытые сделки, по которым не было движения дольше inactiveDays дней. Работает в два шага: вызов без confirmationToken только показывает список и выдаёт токен; изменения применяются при повторном вызове с этим токеном. Перед вторым вызовом обязательно покажи список пользователю и получи явное согласие. Чтобы просто посмотреть зависшие сделки, используй list_stale_deals.")]
     public async Task<string> CloseStaleDeals(
         [Description("Сколько дней без движения считать зависанием, от 7 до 365")] int inactiveDays = 30,
         [Description("Токен из превью. При первом вызове не передавай")] string? confirmationToken = null,

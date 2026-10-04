@@ -28,6 +28,14 @@ Content-Type: application/json
   "stage": "Qualified"
 }
 
+### REST: открытые сделки конкретного ответственного (имя, фамилия или email)
+GET {{host}}/api/deals?owner=anna
+Authorization: Bearer {{key}}
+
+### REST: зависшие сделки (без days порог берётся из Crm:StaleDealDays)
+GET {{host}}/api/deals/stale?days=30
+Authorization: Bearer {{key}}
+
 ### REST: изменить сделку (передаются только меняющиеся поля)
 PATCH {{host}}/api/deals/1
 Authorization: Bearer {{key}}
@@ -36,6 +44,15 @@ Content-Type: application/json
 {
   "amount": 1300000,
   "expectedCloseDate": "2026-10-30"
+}
+
+### REST: перенести срок задачи (срок не раньше сегодняшнего дня)
+PATCH {{host}}/api/tasks/1
+Authorization: Bearer {{key}}
+Content-Type: application/json
+
+{
+  "dueDate": "2026-12-01"
 }
 
 ### MCP: список инструментов (JSON-RPC поверх Streamable HTTP, ответ приходит как SSE)

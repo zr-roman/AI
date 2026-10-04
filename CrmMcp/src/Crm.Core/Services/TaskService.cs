@@ -1,3 +1,4 @@
+using System.Globalization;
 using Crm.Core.Data;
 using Crm.Core.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -10,10 +11,7 @@ public sealed class TaskService(CrmDbContext db, ICurrentUser currentUser, CrmCl
     {
         var title = Text.Required(input.Title, "Название задачи", 300);
         var details = Text.Optional(input.Details, "Подробности", 4000);
-        if (input.DueDate < clock.Today)
-        {
-            throw new CrmValidationException($"Срок задачи ({input.DueDate:yyyy-MM-dd}) уже прошёл. Сегодня {clock.Today:yyyy-MM-dd}.");
-        }
+        ValidateDueDate(input.DueDate);
 
         var contactId = input.ContactId;
         if (input.DealId is { } dealId)
@@ -109,6 +107,70 @@ public sealed class TaskService(CrmDbContext db, ICurrentUser currentUser, CrmCl
         await db.SaveChangesAsync(ct);
         return await GetItemAsync(task.Id, ct);
     }
+
+    /// <summary>
+    /// Переносит срок и/или меняет название и подробности невыполненной задачи.
+    /// В историю контакта и сделки не пишем: перенос задачи — не контакт с клиентом, а запись в истории
+    /// «оживила» бы зависшую сделку. Кто и что менял через агента, видно в аудите вызовов инструментов.
+    /// </summary>
+    public async Task<TaskUpdateResult> UpdateAsync(int taskId, TaskUpdate input, CancellationToken ct = default)
+    {
+        var newTitle = Text.Optional(input.Title, "Название задачи", 300);
+        var newDetails = Text.Optional(input.Details, "Подробности", 4000);
+        if (newTitle is null && input.DueDate is null && newDetails is null)
+        {
+            throw new CrmValidationException("Укажи, что изменить: dueDate, title или details.");
+        }
+
+        var task = await db.Tasks.FirstOrDefaultAsync(t => t.Id == taskId, ct)
+            ?? throw new CrmNotFoundException($"Задача #{taskId} не найдена.");
+
+        currentUser.EnsureCanModify(task.AssigneeId, $"задача #{task.Id}");
+
+        if (task.IsCompleted)
+        {
+            throw new CrmValidationException($"Задача #{task.Id} уже выполнена, менять её нельзя. Для следующего шага создай новую задачу.");
+        }
+
+        var changes = new List<string>();
+
+        if (input.DueDate is { } dueDate && dueDate != task.DueDate)
+        {
+            ValidateDueDate(dueDate);
+            changes.Add($"срок: {DateText(task.DueDate)} → {DateText(dueDate)}");
+            task.DueDate = dueDate;
+        }
+
+        if (newTitle is not null && newTitle != task.Title)
+        {
+            changes.Add($"название: «{task.Title}» → «{newTitle}»");
+            task.Title = newTitle;
+        }
+
+        if (newDetails is not null && newDetails != task.Details)
+        {
+            changes.Add("подробности обновлены");
+            task.Details = newDetails;
+        }
+
+        if (changes.Count == 0)
+        {
+            throw new CrmValidationException($"У задачи #{task.Id} уже такие значения, менять нечего.");
+        }
+
+        await db.SaveChangesAsync(ct);
+        return new TaskUpdateResult(await GetItemAsync(task.Id, ct), changes);
+    }
+
+    private void ValidateDueDate(DateOnly dueDate)
+    {
+        if (dueDate < clock.Today)
+        {
+            throw new CrmValidationException($"Срок задачи ({dueDate:yyyy-MM-dd}) уже прошёл. Сегодня {clock.Today:yyyy-MM-dd}.");
+        }
+    }
+
+    private static string DateText(DateOnly date) => date.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
 
     private Task<TaskItem> GetItemAsync(int taskId, CancellationToken ct) =>
         db.Tasks.AsNoTracking()

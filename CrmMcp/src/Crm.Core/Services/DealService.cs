@@ -11,6 +11,7 @@ namespace Crm.Core.Services;
 public sealed class DealService(CrmDbContext db, ICurrentUser currentUser, CrmClock clock, IOptions<CrmOptions> options)
 {
     private const decimal MaxAmount = 1_000_000_000_000m;
+    private const int MaxStaleDeals = 100;
 
     public async Task<IReadOnlyList<DealListItem>> ListAsync(DealFilter filter, int limit = 20, CancellationToken ct = default)
     {
@@ -21,11 +22,7 @@ public sealed class DealService(CrmDbContext db, ICurrentUser currentUser, CrmCl
             ? deals.Where(d => d.Stage == stage)
             : deals.Where(Projections.IsOpenDeal);
 
-        if (filter.OnlyMine)
-        {
-            var me = currentUser.Id;
-            deals = deals.Where(d => d.OwnerId == me);
-        }
+        deals = await FilterByOwnerAsync(deals, filter.OnlyMine, filter.Owner, ct);
 
         if (Text.Normalize(filter.Query) is { } term)
         {
@@ -261,6 +258,55 @@ public sealed class DealService(CrmDbContext db, ICurrentUser currentUser, CrmCl
             staleDays);
     }
 
+    /// <summary>
+    /// Зависшие сделки: открытые, без смены стадии и записей в истории дольше inactiveDays дней.
+    /// Только чтение и доступно всем, в отличие от массового закрытия. Без inactiveDays берётся порог из сводки по воронке,
+    /// поэтому список совпадает с числом «без движения» в get_pipeline_summary.
+    /// </summary>
+    public async Task<StaleDealList> ListStaleAsync(int? inactiveDays = null, bool onlyMine = false, string? owner = null, CancellationToken ct = default)
+    {
+        // Явно переданный порог проверяем; значение из настроек берём как есть
+        if (inactiveDays is { } requested)
+        {
+            ValidateInactiveDays(requested);
+        }
+
+        var days = inactiveDays ?? options.Value.StaleDealDays;
+        var deals = await FilterByOwnerAsync(db.Deals.AsNoTracking(), onlyMine, owner, ct);
+        var stale = StaleDeals(deals, days);
+
+        var totalCount = await stale.CountAsync(ct);
+        var items = await stale
+            .OrderBy(d => d.StageChangedAt)
+            .Take(MaxStaleDeals)
+            .Select(Projections.ToDealListItem)
+            .ToListAsync(ct);
+
+        // Последнее движение = позднейшее из смены стадии и последней записи в истории
+        var ids = items.Select(d => (int?)d.Id).ToList();
+        var lastActivityAt = await db.Activities.AsNoTracking()
+            .Where(a => ids.Contains(a.DealId))
+            .GroupBy(a => a.DealId)
+            .Select(g => new { DealId = g.Key, LastAt = g.Max(a => a.OccurredAt) })
+            .ToDictionaryAsync(x => x.DealId!.Value, x => x.LastAt, ct);
+
+        var now = clock.UtcNow;
+        var result = items
+            .Select(d =>
+            {
+                var lastMovement = lastActivityAt.TryGetValue(d.Id, out var activityAt) && activityAt > d.StageChangedAt
+                    ? activityAt
+                    : d.StageChangedAt;
+
+                return new StaleDealItem(d, lastMovement, (int)(now - lastMovement).TotalDays);
+            })
+            .OrderByDescending(d => d.IdleDays)
+            .ThenByDescending(d => d.Deal.Amount)
+            .ToList();
+
+        return new StaleDealList(days, onlyMine, Text.Normalize(owner), totalCount, result);
+    }
+
     /// <summary>Шаг 1 массового закрытия: список зависших сделок и токен подтверждения. Ничего не меняет.</summary>
     public async Task<StaleDealsPreview> PreviewStaleDealsAsync(int inactiveDays, CancellationToken ct = default)
     {
@@ -306,6 +352,53 @@ public sealed class DealService(CrmDbContext db, ICurrentUser currentUser, CrmCl
             .OrderBy(d => d.Id)
             .Select(Projections.ToDealListItem)
             .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Фильтр по ответственному: «только мои» или пользователь, найденный по имени, фамилии или email.
+    /// Каждое слово из owner должно встретиться в имени или email, поэтому подходят и «Анна», и «Смирнова Анна».
+    /// </summary>
+    private async Task<IQueryable<Deal>> FilterByOwnerAsync(IQueryable<Deal> deals, bool onlyMine, string? owner, CancellationToken ct)
+    {
+        var ownerQuery = Text.Normalize(owner);
+        if (onlyMine && ownerQuery is not null)
+        {
+            throw new CrmValidationException(
+                "Укажи что-то одно: onlyMine (только мои сделки) или owner (сделки конкретного ответственного).");
+        }
+
+        if (onlyMine)
+        {
+            var me = currentUser.Id;
+            return deals.Where(d => d.OwnerId == me);
+        }
+
+        if (ownerQuery is null)
+        {
+            return deals;
+        }
+
+        var users = db.Users.AsNoTracking();
+        foreach (var word in ownerQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var pattern = Text.ContainsPattern(word);
+            users = users.Where(u => EF.Functions.ILike(u.FullName, pattern) || EF.Functions.ILike(u.Email, pattern));
+        }
+
+        var ownerIds = await users.Select(u => u.Id).ToListAsync(ct);
+        if (ownerIds.Count == 0)
+        {
+            // Пустой список сделок модель приняла бы за «у человека нет сделок» — лучше явно сказать, кто есть в CRM
+            var known = await db.Users.AsNoTracking()
+                .OrderBy(u => u.FullName)
+                .Select(u => u.FullName)
+                .Take(20)
+                .ToListAsync(ct);
+
+            throw new CrmNotFoundException($"Пользователь «{ownerQuery}» не найден. Ответственные в CRM: {string.Join(", ", known)}.");
+        }
+
+        return deals.Where(d => ownerIds.Contains(d.OwnerId));
     }
 
     private Task<DealListItem> GetListItemAsync(int dealId, CancellationToken ct) =>

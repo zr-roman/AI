@@ -61,8 +61,11 @@ public sealed record NewDeal(
     DateOnly? ExpectedCloseDate = null,
     DealStage Stage = DealStage.Lead);
 
-/// <summary>Фильтр списка сделок. Без стадии возвращаются только открытые сделки.</summary>
-public sealed record DealFilter(DealStage? Stage = null, bool OnlyMine = false, string? Query = null);
+/// <summary>
+/// Фильтр списка сделок. Без стадии возвращаются только открытые сделки.
+/// Owner — имя, фамилия или email ответственного; вместе с OnlyMine не используется.
+/// </summary>
+public sealed record DealFilter(DealStage? Stage = null, bool OnlyMine = false, string? Query = null, string? Owner = null);
 
 public sealed record MoveDealStage(DealStage Stage, string? LostReason = null);
 
@@ -91,6 +94,17 @@ public sealed record PipelineSummary(
     int StaleDays);
 
 public sealed record StaleDealsPreview(int InactiveDays, IReadOnlyList<DealListItem> Deals, string ConfirmationToken);
+
+/// <summary>Зависшая сделка: когда по ней было последнее движение (смена стадии или запись в истории) и сколько дней назад.</summary>
+public sealed record StaleDealItem(DealListItem Deal, DateTimeOffset LastMovementAt, int IdleDays);
+
+/// <summary>Список зависших сделок. TotalCount — сколько найдено всего, Deals может быть обрезан.</summary>
+public sealed record StaleDealList(
+    int InactiveDays,
+    bool OnlyMine,
+    string? Owner,
+    int TotalCount,
+    IReadOnlyList<StaleDealItem> Deals);
 
 public sealed record ActivityItem(
     int Id,
@@ -132,6 +146,12 @@ public sealed record NewTask(
     int? DealId = null);
 
 public sealed record CompleteTask(string? ResultNote = null);
+
+/// <summary>Изменение задачи. null или пустая строка — поле не меняется.</summary>
+public sealed record TaskUpdate(string? Title = null, DateOnly? DueDate = null, string? Details = null);
+
+/// <summary>Задача после изменения и человекочитаемый список изменений («срок: 02.10.2026 → 06.10.2026»).</summary>
+public sealed record TaskUpdateResult(TaskItem Task, IReadOnlyList<string> Changes);
 
 public enum TaskFilter
 {

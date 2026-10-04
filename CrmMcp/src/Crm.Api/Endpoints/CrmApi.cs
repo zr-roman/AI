@@ -25,8 +25,11 @@ public static class CrmApi
             return TypedResults.Created($"/api/contacts/{created.Contact.Id}", created);
         });
 
-        api.MapGet("/deals", (DealService deals, DealStage? stage, bool? mine, string? q, int? limit, CancellationToken ct) =>
-            deals.ListAsync(new DealFilter(stage, mine ?? false, q), limit ?? 50, ct));
+        api.MapGet("/deals", (DealService deals, DealStage? stage, bool? mine, string? owner, string? q, int? limit, CancellationToken ct) =>
+            deals.ListAsync(new DealFilter(stage, mine ?? false, q, owner), limit ?? 50, ct));
+
+        api.MapGet("/deals/stale", (DealService deals, int? days, bool? mine, string? owner, CancellationToken ct) =>
+            deals.ListStaleAsync(days, mine ?? false, owner, ct));
 
         api.MapGet("/deals/{id:int}", (DealService deals, int id, CancellationToken ct) =>
             deals.GetCardAsync(id, ct));
@@ -54,6 +57,9 @@ public static class CrmApi
 
         api.MapPost("/tasks", (TaskService tasks, NewTask body, CancellationToken ct) =>
             tasks.CreateAsync(body, ct));
+
+        api.MapPatch("/tasks/{id:int}", (TaskService tasks, int id, TaskUpdate body, CancellationToken ct) =>
+            tasks.UpdateAsync(id, body, ct));
 
         api.MapPost("/tasks/{id:int}/complete", (TaskService tasks, int id, CompleteTask? body, CancellationToken ct) =>
             tasks.CompleteAsync(id, body?.ResultNote, ct));

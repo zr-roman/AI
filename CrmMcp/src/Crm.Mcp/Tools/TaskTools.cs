@@ -22,6 +22,19 @@ public sealed class TaskTools(TaskService tasks, CrmFormatter format)
         return format.TaskCreated(task);
     }
 
+    [McpServerTool(Name = "update_task", Title = "Изменить задачу", Destructive = false, Idempotent = true, OpenWorld = false)]
+    [Description("Переносит срок невыполненной задачи и/или меняет её название или подробности. Передавай только то, что нужно изменить. Менять задачу может её исполнитель или администратор. Отметить выполненной — complete_task.")]
+    public async Task<string> UpdateTask(
+        [Description("ID задачи")] int taskId,
+        [Description("Новый срок, YYYY-MM-DD. Не раньше сегодняшнего дня")] DateOnly? dueDate = null,
+        [Description("Новое название задачи")] string? title = null,
+        [Description("Новые подробности — целиком заменяют прежние")] string? details = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await tasks.UpdateAsync(taskId, new TaskUpdate(title, dueDate, details), cancellationToken);
+        return format.TaskUpdated(result);
+    }
+
     [McpServerTool(Name = "list_my_tasks", Title = "Мои задачи", ReadOnly = true, OpenWorld = false)]
     [Description("Невыполненные задачи текущего пользователя. Open — все, Overdue — просроченные, Today — на сегодня, Week — на 7 дней вперёд вместе с просроченными.")]
     public async Task<string> ListMyTasks(

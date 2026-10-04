@@ -87,6 +87,10 @@ public sealed class CrmFormatter(CrmClock clock)
         {
             scope += ", только мои";
         }
+        else if (!string.IsNullOrWhiteSpace(filter.Owner))
+        {
+            scope += $", ответственный: {filter.Owner.Trim()}";
+        }
 
         if (deals.Count == 0)
         {
@@ -149,6 +153,27 @@ public sealed class CrmFormatter(CrmClock clock)
         sb.AppendLine($"Открыто: {summary.OpenCount} сделок на {Money(summary.OpenAmount)}; взвешенный прогноз {Money(summary.WeightedForecast)}.");
         sb.AppendLine($"Выиграно в этом месяце: {summary.WonThisMonthCount} на {Money(summary.WonThisMonthAmount)}.");
         sb.AppendLine($"Без движения больше {summary.StaleDays} дн.: {summary.StaleCount}.");
+        return sb.ToString();
+    }
+
+    public string StaleDealList(StaleDealList list)
+    {
+        var scope = list.OnlyMine ? ", только мои" : list.Owner is null ? "" : $", ответственный: {list.Owner}";
+        if (list.TotalCount == 0)
+        {
+            return $"Открытых сделок без движения дольше {list.InactiveDays} дн.{scope} нет.";
+        }
+
+        var shown = list.Deals.Count < list.TotalCount ? $", показаны первые {list.Deals.Count}" : "";
+        var sb = new StringBuilder();
+        sb.AppendLine($"Открытые сделки без движения дольше {list.InactiveDays} дн.{scope}: {list.TotalCount}{shown}, на сумму {Money(list.Deals.Sum(d => d.Deal.Amount))}");
+        foreach (var item in list.Deals)
+        {
+            sb.Append("- ").AppendLine($"{DealLine(item.Deal)} · без движения {item.IdleDays} дн., последнее — {DateTime(item.LastMovementAt)}");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("Движение — это смена стадии или запись в истории (звонок, письмо, встреча, заметка). Задачи движением не считаются.");
         return sb.ToString();
     }
 
@@ -237,6 +262,9 @@ public sealed class CrmFormatter(CrmClock clock)
     }
 
     public string TaskCreated(TaskItem task) => $"Создана задача: {TaskLine(task)}";
+
+    public string TaskUpdated(TaskUpdateResult result) =>
+        $"Задача #{result.Task.Id} «{result.Task.Title}» изменена: {string.Join("; ", result.Changes)}.{Environment.NewLine}Сейчас: {TaskLine(result.Task)}";
 
     public string TaskCompleted(TaskItem task, bool resultSaved)
     {
