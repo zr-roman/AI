@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: sql-analyst-postgres
+    environment:
+      POSTGRES_DB: shop
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      # 5433, чтобы не конфликтовать с PostgreSQL из CrmMcp/ на 5432
+      - "5433:5432"
+    volumes:
+      # Скрипты выполняются один раз, при создании пустого тома: схема, демо-данные, витрина, read-only роль
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - analyst-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d shop"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  analyst-pgdata:
