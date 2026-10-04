@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- xUnit v3: тестовый проект — исполняемый файл, dotnet test запускает его через Microsoft.Testing.Platform (см. global.json) -->
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="ModelContextProtocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SqlAnalyst.Core\SqlAnalyst.Core.csproj" />
+    <ProjectReference Include="..\..\src\SqlAnalyst.Agent\SqlAnalyst.Agent.csproj" />
+    <!-- Сервер собирается рядом с тестами: end-to-end тесты запускают его отдельным процессом -->
+    <ProjectReference Include="..\..\src\SqlAnalyst.McpServer\SqlAnalyst.McpServer.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SqlAnalyst.Core/SqlAnalyst.Core.csproj" />
+    <Project Path="src/SqlAnalyst.McpServer/SqlAnalyst.McpServer.csproj" />
+    <Project Path="src/SqlAnalyst.Agent/SqlAnalyst.Agent.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SqlAnalyst.Tests/SqlAnalyst.Tests.csproj" />
+  </Folder>
+</Solution>

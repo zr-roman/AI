@@ -1,0 +1,50 @@
+name: sql-analyst
+
+on:
+  push:
+    branches: [main]
+    paths: ["SqlAnalyst/**", ".github/workflows/sql-analyst.yml"]
+  pull_request:
+    paths: ["SqlAnalyst/**", ".github/workflows/sql-analyst.yml"]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: SqlAnalyst
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: shop
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d shop"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    env:
+      SQLANALYST_TEST_CONNECTION: Host=localhost;Database=shop;Username=analyst_ro;Password=analyst_ro
+      SQLANALYST_TEST_ADMIN_CONNECTION: Host=localhost;Database=shop;Username=postgres;Password=postgres
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Те же скрипты, что docker-compose монтирует в /docker-entrypoint-initdb.d
+      - name: Init database
+        env:
+          PGPASSWORD: postgres
+        run: for f in db/init/*.sql; do psql -h localhost -U postgres -d shop -v ON_ERROR_STOP=1 -q -f "$f"; done
+
+      - name: Build
+        run: dotnet build --configuration Release
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build
