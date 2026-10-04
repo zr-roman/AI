@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "description": "Compiler-accurate, read-only C# code navigation for AI code review, powered by Roslyn",
+  "name": "io.github.<your GitHub username>/roslyn-review",
+  "version": "0.1.0-alpha",
+  "packages": [
+    {
+      "registryType": "nuget",
+      "identifier": "RoslynReview.McpServer",
+      "version": "0.1.0-alpha",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--solution",
+          "description": "Path to the .sln, .slnx or .csproj to analyze",
+          "isRequired": true,
+          "format": "file_path"
+        }
+      ],
+      "environmentVariables": []
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/<your GitHub username>/roslyn-review",
+    "source": "github"
+  }
+}

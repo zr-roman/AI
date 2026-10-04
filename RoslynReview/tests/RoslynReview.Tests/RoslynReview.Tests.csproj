@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- xUnit v3 test projects are executables; `dotnet test` runs them through Microsoft.Testing.Platform (see global.json). -->
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RoslynReview.Core\RoslynReview.Core.csproj" />
+    <!-- Referenced so the server is built next to the tests; the end-to-end tests launch it as a separate process. -->
+    <ProjectReference Include="..\..\src\RoslynReview.McpServer\RoslynReview.McpServer.csproj" />
+  </ItemGroup>
+
+</Project>

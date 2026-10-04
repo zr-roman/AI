@@ -1,0 +1,32 @@
+diff --git a/src/SampleShop.Core/Orders/OrderService.cs b/src/SampleShop.Core/Orders/OrderService.cs
+index 2ad653d..acae877 100644
+--- a/src/SampleShop.Core/Orders/OrderService.cs
++++ b/src/SampleShop.Core/Orders/OrderService.cs
+@@ -8,13 +8,11 @@ public sealed class OrderService(IInventory inventory, IPaymentGateway payments)
+     private readonly IInventory _inventory = inventory;
+     private readonly IPaymentGateway _payments = payments;
+ 
+-
+     public int MaxLinesPerOrder { get; init; } = 50;
+ 
+     /// <summary>Places the order if every line can be reserved and the payment succeeds.</summary>
+     public async Task<OrderResult> PlaceOrderAsync(Order order, CancellationToken cancellationToken)
+     {
+-        cancellationToken.ThrowIfCancellationRequested();
+         var validationError = Validate(order);
+         if (validationError is not null)
+         {
+@@ -34,13 +32,9 @@ public sealed class OrderService(IInventory inventory, IPaymentGateway payments)
+         return new OrderResult(order.Id, charged, charged ? null : "Payment declined");
+     }
+ 
+-    [Obsolete("Use PricingPolicy instead.")]
+     public static decimal CalculateDiscountRate(Order order) =>
+         order.Lines.Count >= 10 ? PriceCalculator.LoyaltyDiscountRate : 0m;
+ 
+-    private static void LogOrder(Order order) =>
+-        Console.WriteLine($"Order {order.Id}: {order.Lines.Count} lines");
+-
+     private string? Validate(Order order)
+     {
+         if (order.Lines.Count == 0)

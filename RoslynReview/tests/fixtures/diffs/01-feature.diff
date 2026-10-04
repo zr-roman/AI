@@ -1,0 +1,127 @@
+diff --git a/README.md b/README.md
+index d8c687e..850d770 100644
+--- a/README.md
++++ b/README.md
+@@ -1,3 +1,4 @@
+ # SampleShop
+ 
+-Fixture solution for the RoslynReview tests.
++Fixture solution for the RoslynReview tests. The diffs in `../diffs` were generated against
++earlier versions of these files, so keep the line numbers stable when editing them.
+diff --git a/src/SampleShop.Api/Program.cs b/src/SampleShop.Api/Program.cs
+index f35fce8..b4f7067 100644
+--- a/src/SampleShop.Api/Program.cs
++++ b/src/SampleShop.Api/Program.cs
+@@ -5,3 +5,4 @@ var endpoints = new OrderEndpoints(new OrderService(new InMemoryInventory(), new
+ var lines = new List<OrderLine> { new("SKU-1", 2, 10m) };
+ 
+ Console.WriteLine(await endpoints.CreateOrderAsync("customer-1", lines, CancellationToken.None));
++Console.WriteLine(endpoints.PreviewDiscount(lines));
+diff --git a/src/SampleShop.Core/Legacy/OldPricing.cs b/src/SampleShop.Core/Legacy/OldPricing.cs
+deleted file mode 100644
+index e047edf..0000000
+--- a/src/SampleShop.Core/Legacy/OldPricing.cs
++++ /dev/null
+@@ -1,6 +0,0 @@
+-namespace SampleShop.Legacy;
+-
+-public static class OldPricing
+-{
+-    public static decimal Discount(decimal amount) => amount * 0.95m;
+-}
+diff --git a/src/SampleShop.Core/Orders/OrderService.cs b/src/SampleShop.Core/Orders/OrderService.cs
+index 9bfde5b..acae877 100644
+--- a/src/SampleShop.Core/Orders/OrderService.cs
++++ b/src/SampleShop.Core/Orders/OrderService.cs
+@@ -1,3 +1,5 @@
++using SampleShop.Pricing;
++
+ namespace SampleShop.Orders;
+ 
+ /// <summary>Places orders: reserves stock, applies discounts and charges the customer.</summary>
+@@ -6,12 +8,15 @@ public sealed class OrderService(IInventory inventory, IPaymentGateway payments)
+     private readonly IInventory _inventory = inventory;
+     private readonly IPaymentGateway _payments = payments;
+ 
+-    /// <summary>Places the order.</summary>
++    public int MaxLinesPerOrder { get; init; } = 50;
++
++    /// <summary>Places the order if every line can be reserved and the payment succeeds.</summary>
+     public async Task<OrderResult> PlaceOrderAsync(Order order, CancellationToken cancellationToken)
+     {
+-        if (order.Lines.Count == 0)
++        var validationError = Validate(order);
++        if (validationError is not null)
+         {
+-            return new OrderResult(order.Id, Succeeded: false, "Order has no lines");
++            return new OrderResult(order.Id, Succeeded: false, validationError);
+         }
+ 
+         foreach (var line in order.Lines)
+@@ -22,11 +27,21 @@ public sealed class OrderService(IInventory inventory, IPaymentGateway payments)
+             }
+         }
+ 
+-        var amount = order.Subtotal;
++        var amount = PriceCalculator.ApplyDiscount(order.Subtotal, CalculateDiscountRate(order));
+         var charged = await _payments.ChargeAsync(order.CustomerId, amount, cancellationToken);
+         return new OrderResult(order.Id, charged, charged ? null : "Payment declined");
+     }
+ 
+     public static decimal CalculateDiscountRate(Order order) =>
+-        order.Lines.Count >= 10 ? 0.05m : 0m;
++        order.Lines.Count >= 10 ? PriceCalculator.LoyaltyDiscountRate : 0m;
++
++    private string? Validate(Order order)
++    {
++        if (order.Lines.Count == 0)
++        {
++            return "Order has no lines";
++        }
++
++        return order.Lines.Count > MaxLinesPerOrder ? "Too many lines" : null;
++    }
+ }
+diff --git a/src/SampleShop.Core/Pricing/Coupon.cs b/src/SampleShop.Core/Pricing/Coupon.cs
+new file mode 100644
+index 0000000..a37fa80
+--- /dev/null
++++ b/src/SampleShop.Core/Pricing/Coupon.cs
+@@ -0,0 +1,6 @@
++namespace SampleShop.Pricing;
++
++public sealed record Coupon(string Code, decimal Rate)
++{
++    public bool IsValid => Rate is > 0 and <= 0.5m;
++}
+diff --git a/src/SampleShop.Core/Pricing/PriceCalculator.cs b/src/SampleShop.Core/Pricing/PriceCalculator.cs
+index 22ff3a6..071dc6f 100644
+--- a/src/SampleShop.Core/Pricing/PriceCalculator.cs
++++ b/src/SampleShop.Core/Pricing/PriceCalculator.cs
+@@ -2,8 +2,15 @@ namespace SampleShop.Pricing;
+ 
+ public static class PriceCalculator
+ {
++    public const decimal LoyaltyDiscountRate = 0.05m;
++
+     public static decimal ApplyDiscount(decimal amount, decimal rate)
+     {
++        if (rate is < 0 or > 1)
++        {
++            throw new ArgumentOutOfRangeException(nameof(rate));
++        }
++
+         return Math.Round(amount * (1 - rate), 2);
+     }
+ }
+diff --git a/tools/Stamp.cs b/tools/Stamp.cs
+new file mode 100644
+index 0000000..7802b86
+--- /dev/null
++++ b/tools/Stamp.cs
+@@ -0,0 +1,5 @@
++// A build helper that is not part of any project in SampleShop.slnx.
++internal static class Stamp
++{
++    public static string Now() => DateTime.UtcNow.ToString("O");
++}

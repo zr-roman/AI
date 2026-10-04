@@ -1,0 +1,6 @@
+<Project>
+  <!-- Stops the fixture from inheriting RoslynReview's central package management. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "roslyn-review": {
+      "command": "dotnet",
+      "args": [
+        "src/RoslynReview.McpServer/bin/Debug/net10.0/RoslynReview.McpServer.dll",
+        "--solution", "tests/fixtures/SampleShop/SampleShop.slnx",
+        "--repo-root", "tests/fixtures/SampleShop"
+      ]
+    }
+  }
+}

@@ -1,0 +1,14 @@
+diff --git a/src/SampleShop.Core/Orders/OrderService.cs b/src/SampleShop.Core/Orders/OrderService.cs
+index 2ad653d..acae877 100644
+--- a/src/SampleShop.Core/Orders/OrderService.cs
++++ b/src/SampleShop.Core/Orders/OrderService.cs
+@@ -11 +10,0 @@ public sealed class OrderService(IInventory inventory, IPaymentGateway payments)
+-
+@@ -17 +15,0 @@ public sealed class OrderService(IInventory inventory, IPaymentGateway payments)
+-        cancellationToken.ThrowIfCancellationRequested();
+@@ -37 +34,0 @@ public sealed class OrderService(IInventory inventory, IPaymentGateway payments)
+-    [Obsolete("Use PricingPolicy instead.")]
+@@ -41,3 +37,0 @@ public sealed class OrderService(IInventory inventory, IPaymentGateway payments)
+-    private static void LogOrder(Order order) =>
+-        Console.WriteLine($"Order {order.Id}: {order.Lines.Count} lines");
+-
