@@ -1,0 +1,32 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- Подтягивает транзитивные EF Core-пакеты к версии ниже, а не к минимальной из зависимостей провайдера -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <PropertyGroup>
+    <McpSdkVersion>2.2.0</McpSdkVersion>
+    <EfCoreVersion>10.0.12</EfCoreVersion>
+    <AspNetCoreVersion>10.0.12</AspNetCoreVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- MCP C# SDK -->
+    <PackageVersion Include="ModelContextProtocol" Version="2.2.0" />
+    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="$(McpSdkVersion)" />
+    <!-- Данные -->
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="$(EfCoreVersion)" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="$(EfCoreVersion)" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="$(EfCoreVersion)" />
+    <!-- Хостинг, конфигурация, авторизация -->
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="$(AspNetCoreVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="$(AspNetCoreVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.UserSecrets" Version="$(AspNetCoreVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="$(AspNetCoreVersion)" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authorization" Version="$(AspNetCoreVersion)" />
+    <!-- Агент: Claude API + абстракции Microsoft.Extensions.AI (та же версия, что у MCP SDK) -->
+    <PackageVersion Include="ModelContextProtocol.Core" Version="$(McpSdkVersion)" />
+    <PackageVersion Include="Anthropic" Version="12.53.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.0" />
+  </ItemGroup>
+</Project>

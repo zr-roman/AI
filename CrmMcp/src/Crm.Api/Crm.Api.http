@@ -1,0 +1,63 @@
+### Запросы для HTTP-клиента Visual Studio / Rider / VS Code (REST Client).
+### Демо-ключи: anna-dev-key (администратор), boris-dev-key (менеджер).
+
+@host = http://localhost:5080
+@key = anna-dev-key
+
+### REST: сводка по воронке
+GET {{host}}/api/pipeline
+Authorization: Bearer {{key}}
+
+### REST: поиск контактов
+GET {{host}}/api/contacts?q=петров
+Authorization: Bearer {{key}}
+
+### REST: открытые сделки в стадии Proposal
+GET {{host}}/api/deals?stage=Proposal
+Authorization: Bearer {{key}}
+
+### REST: создать сделку
+POST {{host}}/api/deals
+Authorization: Bearer {{key}}
+Content-Type: application/json
+
+{
+  "title": "Поставка оборудования для склада",
+  "amount": 500000,
+  "contactId": 1,
+  "stage": "Qualified"
+}
+
+### REST: изменить сделку (передаются только меняющиеся поля)
+PATCH {{host}}/api/deals/1
+Authorization: Bearer {{key}}
+Content-Type: application/json
+
+{
+  "amount": 1300000,
+  "expectedCloseDate": "2026-10-30"
+}
+
+### MCP: список инструментов (JSON-RPC поверх Streamable HTTP, ответ приходит как SSE)
+POST {{host}}/mcp
+Authorization: Bearer {{key}}
+Content-Type: application/json
+Accept: application/json, text/event-stream
+
+{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+
+### MCP: вызов инструмента
+POST {{host}}/mcp
+Authorization: Bearer {{key}}
+Content-Type: application/json
+Accept: application/json, text/event-stream
+
+{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "list_my_tasks", "arguments": {"filter": "Overdue"}}}
+
+### MCP: менеджер не видит close_stale_deals в списке инструментов
+POST {{host}}/mcp
+Authorization: Bearer boris-dev-key
+Content-Type: application/json
+Accept: application/json, text/event-stream
+
+{"jsonrpc": "2.0", "id": 3, "method": "tools/list"}

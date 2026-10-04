@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Crm.Agent/Crm.Agent.csproj" />
+    <Project Path="src/Crm.Api/Crm.Api.csproj" />
+    <Project Path="src/Crm.Core/Crm.Core.csproj" />
+    <Project Path="src/Crm.Mcp.Stdio/Crm.Mcp.Stdio.csproj" />
+    <Project Path="src/Crm.Mcp/Crm.Mcp.csproj" />
+  </Folder>
+</Solution>

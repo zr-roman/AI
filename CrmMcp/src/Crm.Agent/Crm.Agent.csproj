@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Ключ Claude API храним в user-secrets: dotnet user-secrets set "Anthropic:ApiKey" "..." -->
+    <UserSecretsId>crm-mcp-agent</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- MCP-клиент: подключение к серверу CRM и его инструменты как AIFunction -->
+    <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="ModelContextProtocol.Core" />
+    <!-- Официальный C# SDK Claude API: даёт IChatClient через AsIChatClient() -->
+    <PackageReference Include="Anthropic" />
+    <!-- FunctionInvokingChatClient: цикл «модель просит инструмент → вызываем → отдаём результат» -->
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
