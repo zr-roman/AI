@@ -98,6 +98,8 @@ public sealed class QueryExecutor(
             {
                 PostgresErrorCodes.QueryCanceled => ("blocked",
                     $"Запрос прерван по таймауту ({options.StatementTimeoutSeconds} с). Добавь фильтры по дате, агрегируй или ограничь соединения."),
+                PostgresErrorCodes.ConfigurationLimitExceeded or PostgresErrorCodes.OutOfMemory or PostgresErrorCodes.DiskFull => ("blocked",
+                    "Запрос превысил лимит ресурсов (память или временные файлы). Агрегируй данные и сократи промежуточные результаты."),
                 PostgresErrorCodes.InsufficientPrivilege => ("security",
                     $"Нет доступа: роль аналитика видит только схему {options.AllowedSchema}. Используй list_tables."),
                 PostgresErrorCodes.ReadOnlySqlTransaction => ("security",

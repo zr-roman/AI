@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace SqlAnalyst.Core.Output;
@@ -29,6 +31,8 @@ public static partial class InjectionDetector
             return null;
         }
 
+        text = Normalize(text);
+
         foreach (var (pattern, label) in Rules)
         {
             if (pattern.IsMatch(text))
@@ -39,6 +43,31 @@ public static partial class InjectionDetector
 
         return null;
     }
+
+    /// <summary>
+    /// Убирает приёмы обхода регулярок: невидимые символы между буквами («ig\u200Bnore»),
+    /// полноширинные и стилизованные буквы (NFKC), лишние пробелы и подчёркивания вместо пробелов.
+    /// </summary>
+    internal static string Normalize(string text)
+    {
+        var normalized = text.Normalize(NormalizationForm.FormKC);
+        var sb = new StringBuilder(normalized.Length);
+
+        foreach (var c in normalized)
+        {
+            if (char.GetUnicodeCategory(c) is UnicodeCategory.Format or UnicodeCategory.NonSpacingMark)
+            {
+                continue;
+            }
+
+            sb.Append(char.IsWhiteSpace(c) ? ' ' : c);
+        }
+
+        return MultiSpace().Replace(sb.ToString(), " ");
+    }
+
+    [GeneratedRegex(@"\s{2,}")]
+    private static partial Regex MultiSpace();
 
     [GeneratedRegex(@"\b(ignore|disregard|forget|override)\b.{0,40}\b(previous|prior|above|earlier|all|system|your)\b.{0,30}\b(instructions?|rules|prompts?|guidelines|context)\b", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex IgnoreInstructionsEn();

@@ -1,8 +1,14 @@
 -- Роль, от имени которой работает MCP-сервер. Это главный рубеж защиты:
 -- даже если валидатор SQL пропустит что-то лишнее, БД сама не даст писать и читать чужие схемы.
-CREATE ROLE analyst_ro LOGIN PASSWORD 'analyst_ro'
-    NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS
-    CONNECTION LIMIT 10;
+-- Роль общая для всего кластера: если скрипт применяется ко второй базе (тесты), роль уже есть
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'analyst_ro') THEN
+        CREATE ROLE analyst_ro LOGIN PASSWORD 'analyst_ro';
+    END IF;
+END $$;
+
+ALTER ROLE analyst_ro NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 10;
 
 ALTER ROLE analyst_ro SET default_transaction_read_only = on;
 ALTER ROLE analyst_ro SET statement_timeout = '5s';

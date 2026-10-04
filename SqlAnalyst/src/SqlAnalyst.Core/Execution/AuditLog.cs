@@ -47,7 +47,7 @@ public sealed class AuditLog(AnalystOptions options, ILogger<AuditLog> logger)
 
         lock (_lock)
         {
-            var path = Path.GetFullPath(options.AuditLogPath);
+            var path = Path.GetFullPath(options.AuditLogPath, AppContext.BaseDirectory);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.AppendAllText(path, line + Environment.NewLine);
         }
