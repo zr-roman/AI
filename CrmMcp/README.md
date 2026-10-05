@@ -1,13 +1,14 @@
 # CRM + MCP-сервер на .NET 10
 
-Небольшая CRM (контакты, компании, сделки, история активностей, задачи) с MCP-сервером, через который с ней работает AI-агент: Claude Desktop, Claude Code, MCP Inspector или твой собственный клиент.
+Небольшая CRM (контакты, компании, сделки, история активностей, задачи) с MCP-сервером, через который с ней работает AI-агент: Claude Desktop, Claude Code, MCP Inspector или твой собственный клиент. Для людей и интеграций — REST и GraphQL API.
 
-Главная идея: **MCP — тонкий адаптер над бизнес-логикой**. Инструменты вызывают те же сервисы, что и REST API, поэтому валидация, права и аудит одинаковы для человека и для агента.
+Главная идея: **MCP — тонкий адаптер над бизнес-логикой**. Инструменты вызывают те же сервисы, что и REST и GraphQL API, поэтому валидация, права и аудит одинаковы для человека и для агента.
 
 ```
  Клиент                               Хост                              Библиотеки
  Crm.Agent, Claude Code  ──HTTP──►  Crm.Api  POST /mcp ──────────►  Crm.Mcp ──► Crm.Core ──► PostgreSQL
  фронтенд, интеграции    ──REST──►  Crm.Api  /api/*   ──────────────────────────► Crm.Core
+ фронтенд, Nitro IDE     ─GraphQL►  Crm.Api  /graphql ───────────►  Crm.GraphQL ──► Crm.Core
  Claude Desktop, Cursor  ──stdio─►  Crm.Mcp.Stdio ───────────────►  Crm.Mcp ──► Crm.Core
 ```
 
@@ -15,11 +16,13 @@
 |---|---|
 | `src/Crm.Core` | Домен, EF Core (`CrmDbContext`), сервисы с проверкой прав, аудит, демо-данные |
 | `src/Crm.Mcp` | MCP-инструменты, ресурсы, промпты, форматирование ответов, фильтры (ошибки + аудит) |
-| `src/Crm.Api` | ASP.NET Core: `/mcp` (Streamable HTTP, stateless), `/api` (REST), аутентификация по API-ключу |
+| `src/Crm.GraphQL` | GraphQL-схема на Hot Chocolate: типы, DataLoader, фильтры, мутации, подписки |
+| `src/Crm.Api` | ASP.NET Core: `/mcp` (Streamable HTTP, stateless), `/api` (REST), `/graphql`, аутентификация по API-ключу |
 | `src/Crm.Mcp.Stdio` | Консольный MCP-сервер по stdio для локальных клиентов |
 | `src/Crm.Agent` | Свой агент: консольный чат с Claude через Claude API, инструменты берёт с MCP-сервера CRM |
+| `tests/Crm.GraphQL.Tests` | Интеграционные тесты GraphQL API: xUnit v3, WebApplicationFactory, PostgreSQL |
 
-Стек: .NET 10, ASP.NET Core, EF Core 10 + Npgsql (PostgreSQL), [ModelContextProtocol](https://github.com/modelcontextprotocol/csharp-sdk) 2.2.0 — официальный C# SDK, [Anthropic](https://github.com/anthropics/anthropic-sdk-csharp) 12.53.0 + Microsoft.Extensions.AI — для агента.
+Стек: .NET 10, ASP.NET Core, EF Core 10 + Npgsql (PostgreSQL), [ModelContextProtocol](https://github.com/modelcontextprotocol/csharp-sdk) 2.2.0 — официальный C# SDK, [Anthropic](https://github.com/anthropics/anthropic-sdk-csharp) 12.53.0 + Microsoft.Extensions.AI — для агента, [Hot Chocolate](https://chillicream.com/docs/hotchocolate) 16 — GraphQL-сервер.
 
 ## Быстрый старт
 
@@ -128,7 +131,108 @@ Claude>
 - Инструкции сервера (`ServerInstructions`) входят в системный промпт, туда же добавляется сегодняшняя дата, чтобы модель понимала «завтра».
 - После каждого ответа выводится расход токенов — сразу видно, сколько стоит диалог.
 
-## Что умеет сервер
+## GraphQL API
+
+Третий адаптер над `Crm.Core` — GraphQL на [Hot Chocolate 16](https://chillicream.com/docs/hotchocolate), проект `src/Crm.GraphQL`. Чтение идёт через EF Core напрямую: фильтры, сортировка и пагинация транслируются в SQL. Мутации вызывают те же сервисы, что REST и MCP, — с той же валидацией, правами и записью в историю.
+
+| Адрес | Что там |
+|---|---|
+| `POST /graphql` | Запросы и мутации; подписки через SSE (`Accept: text/event-stream`) |
+| `/graphql/ws` | Подписки по WebSocket, протокол graphql-ws |
+| `GET /graphql/schema.graphql` | Схема в SDL — для генерации клиентов (только Development) |
+| `/graphql/ui` | IDE Nitro (только Development) |
+
+Всё, кроме IDE, — только с API-ключом, как `/api` и `/mcp`. Открой http://localhost:5080/graphql/ui и нажми **Create Document**: адрес `/graphql` уже подставлен. На вкладке **HTTP Headers** добавь заголовок `Authorization` со значением `Bearer anna-dev-key` и нажми ⟳ (Reload Schema) — появятся схема, автодополнение и описания полей. IDE раздаётся из сборки, а не с CDN, поэтому работает без интернета.
+
+Интроспекция, схема в SDL и IDE доступны только в Development; `dotnet run` запускает профиль с `ASPNETCORE_ENVIRONMENT=Development`.
+
+Проверка из консоли:
+
+```bash
+curl http://localhost:5080/graphql -H "Authorization: Bearer anna-dev-key" -H "Content-Type: application/json" \
+  -d '{"query":"{ me { fullName role } pipeline { openCount weightedForecast } }"}'
+```
+
+Сделки на стадиях КП и переговоров с ответственным, контактом и историей — одним запросом:
+
+```graphql
+query {
+  deals(
+    first: 10
+    where: { stage: { in: [PROPOSAL, NEGOTIATION] } }
+    order: [{ amount: DESC }]
+  ) {
+    totalCount
+    nodes {
+      title
+      amount
+      stage
+      weightedAmount
+      owner { fullName }
+      contact { fullName company { name } }
+      activities { type subject occurredAt }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+```
+
+Бизнес-ошибка мутации приходит как данные в `errors`, а не как исключение. Без причины перевод в `LOST` не пройдёт:
+
+```graphql
+mutation {
+  moveDealStage(input: { dealId: 1, stage: LOST }) {
+    deal { stage }
+    errors {
+      __typename
+      ... on Error { message }
+    }
+  }
+}
+```
+
+Ответ: `errors: [{ "__typename": "ValidationError", "message": "Для перевода в Lost укажи причину проигрыша (lostReason)." }]`.
+
+Подписка — открой её в одной вкладке Nitro, а в другой переведи сделку `moveDealStage`. Браузер не умеет передавать заголовки при открытии WebSocket, поэтому Nitro сама переключится на SSE, и ключ из HTTP Headers сработает:
+
+```graphql
+subscription {
+  onDealStageChanged {
+    previousStage
+    stage
+    changedBy { fullName }
+    deal { title amount }
+  }
+}
+```
+
+Больше примеров, в том числе пагинация по курсору, проверка прав и подписка через SSE в curl, — в `src/Crm.Api/Crm.Api.http`.
+
+| Операция | Что делает |
+|---|---|
+| `me`, `users` | Текущий пользователь, все пользователи |
+| `deals`, `contacts`, `companies` | Списки с `where`, `order`, курсорной пагинацией и `totalCount` |
+| `deal(id)`, `contact(id)`, `company(id)`, `task(id)` | Сущность по ID |
+| `searchContacts(query)` | Поиск контактов без учёта регистра — тот же, что у REST и MCP |
+| `pipeline`, `staleDeals`, `myTasks`, `dealStages` | Сводка по воронке, зависшие сделки, мои задачи, справочник стадий |
+| `auditLog`, `staleDealsClosurePreview` | Аудит вызовов агента, превью массового закрытия — **только Admin** |
+| `createContact`, `createDeal`, `updateDeal`, `moveDealStage` | Контакты и сделки |
+| `logActivity`, `createTask`, `updateTask`, `completeTask` | История и задачи |
+| `closeStaleDeals` | Массовое закрытие по токену из превью — **только Admin** |
+| `onDealStageChanged` | Подписка на смену стадии сделки |
+
+Как устроено:
+
+- **Граф, а не DTO.** Типы схемы — сущности домена (`Deal`, `Contact`, `Company`, `User`, `Activity`, `Task`) со списком полей, заданным явно: навигационные свойства EF наружу не выходят, а хэш API-ключа не попадёт в схему, даже если в сущность добавят поля. Связи (`deal.owner`, `contact.deals` и т. д.) — отдельные резолверы.
+- **DataLoader против N+1.** Связи грузятся через DataLoader, которые генерирует source generator: 20 сделок с ответственными и контактами — это 3 SQL-запроса, а не 41. Кэш живёт в пределах запроса. Поэтому `Deal` одинаково работает в списке, в `deal(id:)`, в payload мутации и в событии подписки.
+- **Фильтрация, сортировка, пагинация.** `deals`, `contacts`, `companies`, `auditLog` возвращают `IQueryable`, и Hot Chocolate собирает из `where`, `order`, `first`/`after` один SQL-запрос. Поля фильтров и сортировки — белый список: иначе через `where: { owner: { apiKeyHash: … } }` можно было бы перебирать хэш ключа. К сортировке клиента добавляется уникальный ключ, поэтому страницы не «прыгают» при равных значениях.
+- **Мутации через сервисы.** Mutation conventions генерируют `input` и `payload`, а бизнес-ошибки сервисов становятся типами в `payload.errors`: `ValidationError | NotFoundError | ForbiddenError | ConflictError`, у каждой мутации — только свои. Каждая мутация получает отдельный DI-scope и `DbContext`: если одна мутация в запросе упала, её незавершённые изменения не сохранит следующая.
+- **Ошибки запросов.** `CrmErrorFilter` отдаёт текст бизнес-ошибки и код (`NOT_FOUND`, `FORBIDDEN`, `CONFLICT`, `VALIDATION_FAILED`) вместо обезличенного «Unexpected Execution Error». Неожиданные исключения по-прежнему скрыты.
+- **Авторизация.** Весь `/graphql` — только с API-ключом. Поверх этого `[Authorize(Roles = Admin)]` на отдельных полях: менеджер получит `AUTH_NOT_AUTHORIZED` по `auditLog`, а остальные поля того же запроса выполнятся. Права на конкретные сделки и задачи, как и раньше, проверяют сервисы.
+- **Защита от тяжёлых запросов.** Cost analysis (в Hot Chocolate 16 включён по умолчанию, лимит — 1000): связи через DataLoader стоят 10 за элемент, а у вложенных списков задан ожидаемый размер (`[ListSize]`), поэтому запрос «50 контактов → сделки → история → автор» отклоняется до выполнения. Ещё лимиты: глубина запроса — 12, циклы вида `deal → contact → deals → contact`, страница — до 50 элементов. Стоимость любого запроса покажет заголовок `GraphQL-Cost: report`; если легитимные запросы не проходят, лимиты меняются в `ModifyCostOptions`.
+- **Подписки.** `moveDealStage` и `closeStaleDeals` публикуют `onDealStageChanged` через `ITopicEventSender`. В событии только идентификаторы, а сделку подписчик получает через DataLoader. Поэтому in-memory провайдер можно заменить на Redis или Postgres для нескольких экземпляров сервера без изменений кода.
+
+## Что умеет MCP-сервер
 
 **Инструменты** (13). Аннотации `readOnly` / `destructive` / `idempotent` помогают клиенту решать, где спрашивать подтверждение.
 
@@ -181,6 +285,31 @@ Claude>
 
 `Description` пиши как документацию для коллеги: модель выбирает инструмент только по ней. Для фиксированных значений бери enum — они попадут в схему списком.
 
+## Как добавить поле или мутацию в GraphQL
+
+1. Логика — в сервисе `Crm.Core`, как и для MCP.
+2. Запрос — статический метод в классе с `[QueryType]`, мутация — с `[MutationType]` в `src/Crm.GraphQL/<раздел>`. Регистрировать ничего не нужно: source generator добавит поле в `AddCrmTypes()`.
+3. Новая связь сущности — метод с `[Parent]` в её классе `…Node` и DataLoader в `CrmDataLoaders`, иначе получится N+1.
+4. Ошибки мутации, которые клиент должен разбирать, перечисли в `[Error<…>]` — они появятся в `payload.errors`.
+
+## Тесты
+
+`tests/Crm.GraphQL.Tests` — интеграционные тесты GraphQL API на xUnit v3. `WebApplicationFactory` поднимает весь Crm.Api в памяти: аутентификацию по API-ключу, `/graphql`, сервисы и настоящий PostgreSQL. In-memory провайдер EF не подходит: сервисы используют `ILIKE` и `jsonb`. Каждый тестовый класс создаёт свою временную базу `crm_tests_<guid>` с демо-данными и удаляет её после прогона, поэтому классы выполняются параллельно.
+
+```bash
+dotnet test
+```
+
+По умолчанию тесты подключаются к тому же серверу, что и приложение (`localhost:5433`, `postgres` / `12345`). Другой сервер задаёт переменная окружения `CRM_TESTS_POSTGRES`, например для `docker compose`: `CRM_TESTS_POSTGRES=Host=localhost;Port=5432;Username=crm;Password=crm`.
+
+Что проверяют:
+
+- **Контракт схемы.** `SchemaTests` сравнивает SDL с эталоном `Snapshots/schema.graphql`. Любое изменение схемы роняет тест и видно в diff эталона на ревью. Если изменение ожидаемое и не ломает клиентов, замени эталон полученным файлом `schema.received.graphql`.
+- **Запросы.** Фильтрация, сортировка и курсорная пагинация, фильтр по связанным сущностям, поиск, `null` для несуществующего ID, `AUTH_NOT_AUTHORIZED` у менеджера на поле администратора при выполнении остального запроса, бизнес-ошибка с текстом и кодом, отказ cost analysis до обращения к БД.
+- **N+1.** Перехватчик EF Core считает SQL-запросы: 8 сделок с ответственным, контактом и компанией — 5 запросов (проверка ключа, страница сделок, пользователи, контакты, компании) вместо 25 с лишним.
+- **Мутации.** Ошибки сервисов приходят типами в `payload.errors` (`ValidationError`, `ForbiddenError`, `NotFoundError`, `ConflictError`), смена стадии пишется в историю, задача создаётся и закрывается один раз, массовое закрытие — в два шага и только у администратора.
+- **Подписки.** Событие `onDealStageChanged` доходит до подписчика по WebSocket (`graphql-transport-ws`), а без ключа соединение не открывается.
+
 ## Миграции
 
 Для быстрого старта схема создаётся через `EnsureCreated`. Чтобы перейти на миграции:
@@ -200,11 +329,13 @@ docker compose down -v && docker compose up -d   # пересоздать БД: 
 - **Секреты.** Строку подключения и ключи — в user-secrets или переменные окружения, не в `appsettings.json`.
 - **Схема БД.** Перейди на миграции (см. выше) и отключи `Crm:SeedDemoData`.
 - **Нагрузка.** Добавь rate limiting на `/mcp`: агент может вызывать инструменты очень часто.
+- **GraphQL.** Для публичных клиентов разреши только заранее сохранённые запросы (trusted documents) и подбери лимиты стоимости по реальным запросам. Интроспекция, схема в SDL и IDE Nitro вне Development уже выключены.
 
 ## Куда развивать
 
-- Интеграционные тесты: Testcontainers (PostgreSQL) + `McpClient` против поднятого сервера.
+- Интеграционные тесты MCP: `McpClient` против поднятого сервера, как уже сделано для GraphQL. Testcontainers вместо локального PostgreSQL, чтобы тесты шли в CI без подготовки.
 - Семантический поиск по истории общения (pgvector).
 - Подтверждения через elicitation, если клиент их поддерживает.
 - Нативные подтверждения в агенте: `ApprovalRequiredAIFunction` из Microsoft.Extensions.AI вместо консольного вопроса — пригодится для веб-интерфейса.
 - Сжатие истории диалога (`UseChatReducer`) для длинных сессий агента.
+- GraphQL: в CI отличать ломающие изменения схемы от безопасных (сейчас snapshot-тест останавливает на любом), пагинация вложенных списков (`contact.activities`) через DataLoader и `PagingArguments`, аудит GraphQL-мутаций, как у MCP-инструментов.

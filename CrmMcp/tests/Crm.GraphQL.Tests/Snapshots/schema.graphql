@@ -1,0 +1,944 @@
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+type Query {
+  "Журнал аудита: вызовы MCP-инструментов агентом — кто, что, с какими аргументами и чем закончилось. Только для администратора."
+  auditLog(
+    "Returns the first _n_ elements from the list."
+    first: Int
+    "Returns the elements in the list that come after the specified cursor."
+    after: String
+    "Returns the last _n_ elements from the list."
+    last: Int
+    "Returns the elements in the list that come before the specified cursor."
+    before: String
+    where: AuditEntryFilterInput @cost(weight: "10")
+    order: [AuditEntrySortInput!] @cost(weight: "10")
+  ): AuditLogConnection
+    @listSize(
+      assumedSize: 50
+      slicingArguments: ["first", "last"]
+      slicingArgumentDefaultValue: 20
+      sizedFields: ["edges", "nodes"]
+      requireOneSlicingArgument: false
+    )
+    @cost(weight: "10")
+  "Шаг 1 массового закрытия: зависшие сделки и токен подтверждения. Ничего не меняет. Шаг 2 — мутация closeStaleDeals с этим токеном. Только для администратора."
+  staleDealsClosurePreview(
+    "Сколько дней без движения считать зависанием, от 7 до 365"
+    inactiveDays: Int! = 30
+  ): StaleDealsPreview! @cost(weight: "10")
+  "Компании с фильтрацией, сортировкой и курсорной пагинацией. Без order — по названию."
+  companies(
+    "Returns the first _n_ elements from the list."
+    first: Int
+    "Returns the elements in the list that come after the specified cursor."
+    after: String
+    "Returns the last _n_ elements from the list."
+    last: Int
+    "Returns the elements in the list that come before the specified cursor."
+    before: String
+    where: CompanyFilterInput @cost(weight: "10")
+    order: [CompanySortInput!] @cost(weight: "10")
+  ): CompaniesConnection
+    @listSize(
+      assumedSize: 50
+      slicingArguments: ["first", "last"]
+      slicingArgumentDefaultValue: 20
+      sizedFields: ["edges", "nodes"]
+      requireOneSlicingArgument: false
+    )
+    @cost(weight: "10")
+  "Компания по ID."
+  company(id: Int!): Company @cost(weight: "10")
+  "Контакты с фильтрацией, сортировкой и курсорной пагинацией. Без order — по фамилии и имени."
+  contacts(
+    "Returns the first _n_ elements from the list."
+    first: Int
+    "Returns the elements in the list that come after the specified cursor."
+    after: String
+    "Returns the last _n_ elements from the list."
+    last: Int
+    "Returns the elements in the list that come before the specified cursor."
+    before: String
+    where: ContactFilterInput @cost(weight: "10")
+    order: [ContactSortInput!] @cost(weight: "10")
+  ): ContactsConnection
+    @listSize(
+      assumedSize: 50
+      slicingArguments: ["first", "last"]
+      slicingArgumentDefaultValue: 20
+      sizedFields: ["edges", "nodes"]
+      requireOneSlicingArgument: false
+    )
+    @cost(weight: "10")
+  "Контакт по ID."
+  contact(id: Int!): Contact @cost(weight: "10")
+  "Поиск контактов по имени, email, телефону или названию компании без учёта регистра."
+  searchContacts(
+    "Строка поиска, например «петров» или «vector»"
+    query: String!
+    "Сколько контактов вернуть, от 1 до 50"
+    limit: Int! = 10
+  ): [Contact!]!
+    @listSize(
+      assumedSize: 50
+      slicingArguments: ["limit"]
+      requireOneSlicingArgument: false
+    )
+    @cost(weight: "10")
+  "Сделки с фильтрацией, сортировкой и курсорной пагинацией: например, deals(where: { stage: { in: [PROPOSAL, NEGOTIATION] } }, order: [{ amount: DESC }]). В отличие от REST, по умолчанию возвращаются все сделки, включая закрытые. Без order — сначала крупные."
+  deals(
+    "Returns the first _n_ elements from the list."
+    first: Int
+    "Returns the elements in the list that come after the specified cursor."
+    after: String
+    "Returns the last _n_ elements from the list."
+    last: Int
+    "Returns the elements in the list that come before the specified cursor."
+    before: String
+    where: DealFilterInput @cost(weight: "10")
+    order: [DealSortInput!] @cost(weight: "10")
+  ): DealsConnection
+    @listSize(
+      assumedSize: 50
+      slicingArguments: ["first", "last"]
+      slicingArgumentDefaultValue: 20
+      sizedFields: ["edges", "nodes"]
+      requireOneSlicingArgument: false
+    )
+    @cost(weight: "10")
+  "Сделка по ID."
+  deal(id: Int!): Deal @cost(weight: "10")
+  "Сводка по воронке: открытые сделки по стадиям, взвешенный прогноз, выигранное за месяц, зависшие."
+  pipeline(
+    "true — только сделки текущего пользователя"
+    onlyMine: Boolean! = false
+  ): PipelineSummary! @cost(weight: "10")
+  "Открытые сделки без движения дольше inactiveDays дней: стадия не менялась и в истории нет записей. Сначала самые давно забытые."
+  staleDeals(
+    "Порог в днях, от 7 до 365. Без него — порог из сводки по воронке"
+    inactiveDays: Int
+    "true — только сделки текущего пользователя"
+    onlyMine: Boolean! = false
+    "Ответственный: имя, фамилия или email. Не передавай вместе с onlyMine"
+    owner: String
+  ): StaleDealList! @cost(weight: "10")
+  "Справочник стадий воронки: название, описание и вероятность закрытия."
+  dealStages: [DealStageInfo!]!
+  "Мои невыполненные задачи: все (OPEN), просроченные (OVERDUE), на сегодня (TODAY) или на неделю (WEEK)."
+  myTasks(filter: TaskFilter! = OPEN): [Task!]!
+    @listSize(assumedSize: 20, requireOneSlicingArgument: false)
+    @cost(weight: "10")
+  "Задача по ID."
+  task(id: Int!): Task @cost(weight: "10")
+  "Текущий пользователь — тот, чей API-ключ пришёл в запросе."
+  me: User! @cost(weight: "10")
+  "Все пользователи CRM: из них выбирают ответственного в фильтрах."
+  users: [User!]! @cost(weight: "10")
+}
+
+type Mutation {
+  "Записывает в историю звонок, письмо, встречу или заметку по контакту и/или сделке. Если указана только сделка, контакт подставится из неё. Будущие дела оформляй задачей (createTask)."
+  logActivity(input: LogActivityInput!): LogActivityPayload! @cost(weight: "10")
+  "Шаг 2 массового закрытия: переводит зависшие сделки в LOST. Токен — из staleDealsClosurePreview; если набор сделок с тех пор изменился, вернётся ConflictError и ничего не изменится. Только для администратора."
+  closeStaleDeals(input: CloseStaleDealsInput!): CloseStaleDealsPayload!
+    @cost(weight: "10")
+  "Создаёт контакт от имени текущего пользователя. Компания находится по названию или создаётся."
+  createContact(input: CreateContactInput!): CreateContactPayload!
+    @cost(weight: "10")
+  "Создаёт сделку от имени текущего пользователя. Если указан контакт, компания подставится из его карточки."
+  createDeal(input: CreateDealInput!): CreateDealPayload! @cost(weight: "10")
+  "Меняет название, сумму и/или ожидаемую дату закрытия открытой сделки — передавай только то, что меняется. Стадию меняет moveDealStage. Изменения записываются в историю сделки."
+  updateDeal(input: UpdateDealInput!): UpdateDealPayload! @cost(weight: "10")
+  "Переводит сделку на другую стадию воронки и записывает смену в историю. Для LOST обязательна причина. Подписчики onDealStageChanged получают событие."
+  moveDealStage(input: MoveDealStageInput!): MoveDealStagePayload!
+    @cost(weight: "10")
+  "Создаёт задачу текущему пользователю. Если указана только сделка, контакт подставится из неё."
+  createTask(input: CreateTaskInput!): CreateTaskPayload! @cost(weight: "10")
+  "Переносит срок, меняет название или подробности невыполненной задачи. Передавай только то, что меняется."
+  updateTask(input: UpdateTaskInput!): UpdateTaskPayload! @cost(weight: "10")
+  "Отмечает задачу выполненной. Результат записывается в историю контакта и сделки."
+  completeTask(input: CompleteTaskInput!): CompleteTaskPayload!
+    @cost(weight: "10")
+}
+
+type Subscription {
+  "Смена стадии сделки: перевод по воронке, выигрыш, проигрыш, массовое закрытие зависших."
+  onDealStageChanged: DealStageChanged!
+}
+
+"Запись в истории взаимодействий: звонок, письмо, встреча, заметка или смена стадии."
+type Activity {
+  contact: Contact @cost(weight: "10")
+  deal: Deal @cost(weight: "10")
+  "Кто сделал запись."
+  author: User! @cost(weight: "10")
+  id: Int!
+  type: ActivityType!
+  subject: String!
+  details: String
+  occurredAt: DateTime!
+}
+
+"Запись аудита: кто, через какой канал и с какими аргументами вызвал операцию."
+type AuditEntry {
+  "Пользователь, от имени которого выполнялась операция."
+  user: User @cost(weight: "10")
+  id: Long!
+  occurredAt: DateTime!
+  userId: Int
+  channel: String!
+  operation: String!
+  arguments: String
+  succeeded: Boolean!
+  error: String
+  durationMs: Int!
+}
+
+"A connection to a list of items."
+type AuditLogConnection {
+  "Information to aid in pagination."
+  pageInfo: PageInfo!
+  "A list of edges."
+  edges: [AuditLogEdge!]
+  "A flattened list of the nodes."
+  nodes: [AuditEntry!]
+  "Identifies the total count of items in the connection."
+  totalCount: Int! @cost(weight: "10")
+}
+
+"An edge in a connection."
+type AuditLogEdge {
+  "A cursor for use in pagination."
+  cursor: String!
+  "The item at the end of the edge."
+  node: AuditEntry!
+}
+
+type CloseStaleDealsPayload {
+  deals: [Deal!]
+  errors: [CloseStaleDealsError!]
+}
+
+"A connection to a list of items."
+type CompaniesConnection {
+  "Information to aid in pagination."
+  pageInfo: PageInfo!
+  "A list of edges."
+  edges: [CompaniesEdge!]
+  "A flattened list of the nodes."
+  nodes: [Company!]
+  "Identifies the total count of items in the connection."
+  totalCount: Int! @cost(weight: "10")
+}
+
+"An edge in a connection."
+type CompaniesEdge {
+  "A cursor for use in pagination."
+  cursor: String!
+  "The item at the end of the edge."
+  node: Company!
+}
+
+"Компания клиента."
+type Company {
+  "Контакты компании."
+  contacts: [Contact!]!
+    @listSize(assumedSize: 20, requireOneSlicingArgument: false)
+    @cost(weight: "10")
+  "Сделки компании, сначала крупные. По умолчанию только открытые."
+  deals(
+    "true — вместе с выигранными и проигранными"
+    includeClosed: Boolean! = false
+  ): [Deal!]!
+    @listSize(assumedSize: 20, requireOneSlicingArgument: false)
+    @cost(weight: "10")
+  id: Int!
+  name: String!
+  industry: String
+  website: String
+  createdAt: DateTime!
+}
+
+type CompleteTaskPayload {
+  task: Task
+  errors: [CompleteTaskError!]
+}
+
+type ConflictError implements Error {
+  message: String!
+}
+
+"Контактное лицо клиента."
+type Contact {
+  fullName: String!
+  company: Company @cost(weight: "10")
+  "Ответственный менеджер."
+  owner: User! @cost(weight: "10")
+  "Сделки контакта, сначала крупные. По умолчанию только открытые."
+  deals(
+    "true — вместе с выигранными и проигранными"
+    includeClosed: Boolean! = false
+  ): [Deal!]!
+    @listSize(assumedSize: 20, requireOneSlicingArgument: false)
+    @cost(weight: "10")
+  "История взаимодействий, сначала новые."
+  activities: [Activity!]!
+    @listSize(assumedSize: 20, requireOneSlicingArgument: false)
+    @cost(weight: "10")
+  "Задачи по контакту, ближайшие сначала. По умолчанию только невыполненные."
+  tasks("true — вместе с выполненными" includeCompleted: Boolean! = false): [Task!]!
+    @listSize(assumedSize: 20, requireOneSlicingArgument: false)
+    @cost(weight: "10")
+  id: Int!
+  firstName: String!
+  lastName: String!
+  email: String
+  phone: String
+  position: String
+  createdAt: DateTime!
+}
+
+"A connection to a list of items."
+type ContactsConnection {
+  "Information to aid in pagination."
+  pageInfo: PageInfo!
+  "A list of edges."
+  edges: [ContactsEdge!]
+  "A flattened list of the nodes."
+  nodes: [Contact!]
+  "Identifies the total count of items in the connection."
+  totalCount: Int! @cost(weight: "10")
+}
+
+"An edge in a connection."
+type ContactsEdge {
+  "A cursor for use in pagination."
+  cursor: String!
+  "The item at the end of the edge."
+  node: Contact!
+}
+
+type CreateContactPayload {
+  contact: Contact
+  companyCreated: Boolean
+  errors: [CreateContactError!]
+}
+
+type CreateDealPayload {
+  deal: Deal
+  errors: [CreateDealError!]
+}
+
+type CreateTaskPayload {
+  task: Task
+  errors: [CreateTaskError!]
+}
+
+"Сделка в воронке продаж."
+type Deal {
+  "Вероятность закрытия по стадии воронки, от 0 до 1."
+  probability: Decimal!
+  "Взвешенная сумма: сумма × вероятность стадии. Из таких сумм складывается прогноз."
+  weightedAmount: Decimal!
+  "Сделка закрыта: WON или LOST."
+  isClosed: Boolean!
+  contact: Contact @cost(weight: "10")
+  company: Company @cost(weight: "10")
+  "Ответственный менеджер."
+  owner: User! @cost(weight: "10")
+  "История сделки, сначала новые записи: звонки, письма, смены стадий."
+  activities: [Activity!]!
+    @listSize(assumedSize: 20, requireOneSlicingArgument: false)
+    @cost(weight: "10")
+  "Задачи по сделке, ближайшие сначала. По умолчанию только невыполненные."
+  tasks("true — вместе с выполненными" includeCompleted: Boolean! = false): [Task!]!
+    @listSize(assumedSize: 20, requireOneSlicingArgument: false)
+    @cost(weight: "10")
+  id: Int!
+  title: String!
+  "Сумма в рублях."
+  amount: Decimal!
+  stage: DealStage!
+  "Ожидаемая дата закрытия."
+  expectedCloseDate: LocalDate
+  "Причина проигрыша, заполняется для стадии LOST."
+  lostReason: String
+  createdAt: DateTime!
+  stageChangedAt: DateTime!
+  closedAt: DateTime
+}
+
+"A connection to a list of items."
+type DealsConnection {
+  "Information to aid in pagination."
+  pageInfo: PageInfo!
+  "A list of edges."
+  edges: [DealsEdge!]
+  "A flattened list of the nodes."
+  nodes: [Deal!]
+  "Identifies the total count of items in the connection."
+  totalCount: Int! @cost(weight: "10")
+}
+
+"An edge in a connection."
+type DealsEdge {
+  "A cursor for use in pagination."
+  cursor: String!
+  "The item at the end of the edge."
+  node: Deal!
+}
+
+type DealStageChanged {
+  deal: Deal! @cost(weight: "10")
+  "Кто перевёл сделку."
+  changedBy: User! @cost(weight: "10")
+  dealId: Int!
+  previousStage: DealStage!
+  stage: DealStage!
+  changedById: Int!
+  changedAt: DateTime!
+}
+
+type DealStageInfo {
+  stage: DealStage!
+  displayName: String!
+  description: String!
+  probability: Decimal!
+  isClosed: Boolean!
+}
+
+type ForbiddenError implements Error {
+  message: String!
+}
+
+type LogActivityPayload {
+  activity: Activity
+  errors: [LogActivityError!]
+}
+
+type MoveDealStagePayload {
+  deal: Deal
+  previousStage: DealStage
+  errors: [MoveDealStageError!]
+}
+
+type NotFoundError implements Error {
+  message: String!
+}
+
+"Information about pagination in a connection."
+type PageInfo {
+  "Indicates whether more edges exist following the set defined by the clients arguments."
+  hasNextPage: Boolean!
+  "Indicates whether more edges exist prior the set defined by the clients arguments."
+  hasPreviousPage: Boolean!
+  "When paginating backwards, the cursor to continue."
+  startCursor: String
+  "When paginating forwards, the cursor to continue."
+  endCursor: String
+}
+
+type PipelineStage {
+  stage: DealStage!
+  count: Int!
+  amount: Decimal!
+  weightedAmount: Decimal!
+}
+
+type PipelineSummary {
+  stages: [PipelineStage!]!
+  openCount: Int!
+  openAmount: Decimal!
+  weightedForecast: Decimal!
+  wonThisMonthCount: Int!
+  wonThisMonthAmount: Decimal!
+  staleCount: Int!
+  staleDays: Int!
+}
+
+type StaleDealItem {
+  deal: Deal! @cost(weight: "10")
+  lastMovementAt: DateTime!
+  idleDays: Int!
+}
+
+type StaleDealList {
+  inactiveDays: Int!
+  onlyMine: Boolean!
+  owner: String
+  totalCount: Int!
+  deals: [StaleDealItem!]!
+}
+
+type StaleDealsPreview {
+  deals: [Deal!]! @cost(weight: "10")
+  inactiveDays: Int!
+  confirmationToken: String!
+}
+
+"Задача менеджера: следующий шаг по клиенту или сделке."
+type Task {
+  "Просрочена: не выполнена, а срок уже прошёл. «Сегодня» считается в часовом поясе отдела продаж."
+  isOverdue: Boolean!
+  "Исполнитель."
+  assignee: User! @cost(weight: "10")
+  contact: Contact @cost(weight: "10")
+  deal: Deal @cost(weight: "10")
+  id: Int!
+  title: String!
+  details: String
+  dueDate: LocalDate!
+  isCompleted: Boolean!
+  completedAt: DateTime
+  createdAt: DateTime!
+}
+
+type UpdateDealPayload {
+  deal: Deal
+  changes: [String!]
+  errors: [UpdateDealError!]
+}
+
+type UpdateTaskPayload {
+  task: Task
+  changes: [String!]
+  errors: [UpdateTaskError!]
+}
+
+"Сотрудник отдела продаж — пользователь CRM."
+type User {
+  id: Int!
+  fullName: String!
+  email: String!
+  role: UserRole!
+}
+
+type ValidationError implements Error {
+  message: String!
+}
+
+interface Error {
+  message: String!
+}
+
+union CloseStaleDealsError = ValidationError | ConflictError | ForbiddenError
+
+union CompleteTaskError = ValidationError | NotFoundError | ForbiddenError
+
+union CreateContactError = ValidationError | ConflictError
+
+union CreateDealError = ValidationError | NotFoundError
+
+union CreateTaskError = ValidationError | NotFoundError
+
+union LogActivityError = ValidationError | NotFoundError
+
+union MoveDealStageError = ValidationError | NotFoundError | ForbiddenError
+
+union UpdateDealError = ValidationError | NotFoundError | ForbiddenError
+
+union UpdateTaskError = ValidationError | NotFoundError | ForbiddenError
+
+input AuditEntryFilterInput {
+  and: [AuditEntryFilterInput!]
+  or: [AuditEntryFilterInput!]
+  id: LongOperationFilterInput
+  occurredAt: DateTimeOperationFilterInput
+  userId: IntOperationFilterInput
+  channel: StringOperationFilterInput
+  operation: StringOperationFilterInput
+  succeeded: BooleanOperationFilterInput
+  durationMs: IntOperationFilterInput
+}
+
+input AuditEntrySortInput {
+  id: SortEnumType @cost(weight: "10")
+  occurredAt: SortEnumType @cost(weight: "10")
+  operation: SortEnumType @cost(weight: "10")
+  durationMs: SortEnumType @cost(weight: "10")
+}
+
+input BooleanOperationFilterInput {
+  eq: Boolean @cost(weight: "10")
+  neq: Boolean @cost(weight: "10")
+}
+
+input CloseStaleDealsInput {
+  "Тот же порог в днях, что в превью"
+  inactiveDays: Int!
+  "Токен из staleDealsClosurePreview"
+  confirmationToken: String!
+}
+
+input CompanyFilterInput {
+  and: [CompanyFilterInput!]
+  or: [CompanyFilterInput!]
+  id: IntOperationFilterInput
+  name: StringOperationFilterInput
+  industry: StringOperationFilterInput
+  website: StringOperationFilterInput
+  createdAt: DateTimeOperationFilterInput
+}
+
+input CompanySortInput {
+  id: SortEnumType @cost(weight: "10")
+  name: SortEnumType @cost(weight: "10")
+  industry: SortEnumType @cost(weight: "10")
+  createdAt: SortEnumType @cost(weight: "10")
+}
+
+input CompleteTaskInput {
+  taskId: Int!
+  "Чем закончилось, например «Договор подписан»"
+  resultNote: String
+}
+
+input ContactFilterInput {
+  and: [ContactFilterInput!]
+  or: [ContactFilterInput!]
+  id: IntOperationFilterInput
+  firstName: StringOperationFilterInput
+  lastName: StringOperationFilterInput
+  email: StringOperationFilterInput
+  phone: StringOperationFilterInput
+  position: StringOperationFilterInput
+  createdAt: DateTimeOperationFilterInput
+  companyId: IntOperationFilterInput
+  ownerId: IntOperationFilterInput
+  company: CompanyFilterInput
+  owner: UserFilterInput
+}
+
+input ContactSortInput {
+  id: SortEnumType @cost(weight: "10")
+  firstName: SortEnumType @cost(weight: "10")
+  lastName: SortEnumType @cost(weight: "10")
+  email: SortEnumType @cost(weight: "10")
+  position: SortEnumType @cost(weight: "10")
+  createdAt: SortEnumType @cost(weight: "10")
+  company: CompanySortInput @cost(weight: "10")
+  owner: UserSortInput @cost(weight: "10")
+}
+
+input CreateContactInput {
+  firstName: String!
+  lastName: String!
+  email: String
+  phone: String
+  position: String
+  "Название компании: найдётся существующая или будет создана новая"
+  companyName: String
+}
+
+input CreateDealInput {
+  title: String!
+  "Сумма в рублях"
+  amount: Decimal!
+  contactId: Int
+  "ID компании, если контакт не указан или работает в другой компании"
+  companyId: Int
+  expectedCloseDate: LocalDate
+  "Начальная стадия: только открытые, без WON и LOST. По умолчанию LEAD"
+  stage: OpenDealStage
+}
+
+input CreateTaskInput {
+  title: String!
+  "Срок, не раньше сегодняшнего дня"
+  dueDate: LocalDate!
+  details: String
+  contactId: Int
+  dealId: Int
+}
+
+input DateTimeOperationFilterInput {
+  eq: DateTime @cost(weight: "10")
+  neq: DateTime @cost(weight: "10")
+  in: [DateTime] @cost(weight: "10")
+  nin: [DateTime] @cost(weight: "10")
+  gt: DateTime @cost(weight: "10")
+  ngt: DateTime @cost(weight: "10")
+  gte: DateTime @cost(weight: "10")
+  ngte: DateTime @cost(weight: "10")
+  lt: DateTime @cost(weight: "10")
+  nlt: DateTime @cost(weight: "10")
+  lte: DateTime @cost(weight: "10")
+  nlte: DateTime @cost(weight: "10")
+}
+
+input DealFilterInput {
+  and: [DealFilterInput!]
+  or: [DealFilterInput!]
+  id: IntOperationFilterInput
+  title: StringOperationFilterInput
+  amount: DecimalOperationFilterInput
+  stage: DealStageOperationFilterInput
+  expectedCloseDate: LocalDateOperationFilterInput
+  createdAt: DateTimeOperationFilterInput
+  stageChangedAt: DateTimeOperationFilterInput
+  closedAt: DateTimeOperationFilterInput
+  contactId: IntOperationFilterInput
+  companyId: IntOperationFilterInput
+  ownerId: IntOperationFilterInput
+  contact: ContactFilterInput
+  company: CompanyFilterInput
+  owner: UserFilterInput
+}
+
+input DealSortInput {
+  id: SortEnumType @cost(weight: "10")
+  title: SortEnumType @cost(weight: "10")
+  amount: SortEnumType @cost(weight: "10")
+  expectedCloseDate: SortEnumType @cost(weight: "10")
+  createdAt: SortEnumType @cost(weight: "10")
+  stageChangedAt: SortEnumType @cost(weight: "10")
+  closedAt: SortEnumType @cost(weight: "10")
+  company: CompanySortInput @cost(weight: "10")
+  owner: UserSortInput @cost(weight: "10")
+}
+
+input DealStageOperationFilterInput {
+  eq: DealStage @cost(weight: "10")
+  neq: DealStage @cost(weight: "10")
+  in: [DealStage!] @cost(weight: "10")
+  nin: [DealStage!] @cost(weight: "10")
+}
+
+input DecimalOperationFilterInput {
+  eq: Decimal @cost(weight: "10")
+  neq: Decimal @cost(weight: "10")
+  in: [Decimal] @cost(weight: "10")
+  nin: [Decimal] @cost(weight: "10")
+  gt: Decimal @cost(weight: "10")
+  ngt: Decimal @cost(weight: "10")
+  gte: Decimal @cost(weight: "10")
+  ngte: Decimal @cost(weight: "10")
+  lt: Decimal @cost(weight: "10")
+  nlt: Decimal @cost(weight: "10")
+  lte: Decimal @cost(weight: "10")
+  nlte: Decimal @cost(weight: "10")
+}
+
+input IntOperationFilterInput {
+  eq: Int @cost(weight: "10")
+  neq: Int @cost(weight: "10")
+  in: [Int] @cost(weight: "10")
+  nin: [Int] @cost(weight: "10")
+  gt: Int @cost(weight: "10")
+  ngt: Int @cost(weight: "10")
+  gte: Int @cost(weight: "10")
+  ngte: Int @cost(weight: "10")
+  lt: Int @cost(weight: "10")
+  nlt: Int @cost(weight: "10")
+  lte: Int @cost(weight: "10")
+  nlte: Int @cost(weight: "10")
+}
+
+input LocalDateOperationFilterInput {
+  eq: LocalDate @cost(weight: "10")
+  neq: LocalDate @cost(weight: "10")
+  in: [LocalDate] @cost(weight: "10")
+  nin: [LocalDate] @cost(weight: "10")
+  gt: LocalDate @cost(weight: "10")
+  ngt: LocalDate @cost(weight: "10")
+  gte: LocalDate @cost(weight: "10")
+  ngte: LocalDate @cost(weight: "10")
+  lt: LocalDate @cost(weight: "10")
+  nlt: LocalDate @cost(weight: "10")
+  lte: LocalDate @cost(weight: "10")
+  nlte: LocalDate @cost(weight: "10")
+}
+
+input LogActivityInput {
+  type: LoggableActivityType!
+  "Краткий итог одной строкой"
+  subject: String!
+  "Подробности: договорённости, возражения, следующие шаги"
+  details: String
+  contactId: Int
+  dealId: Int
+  "Когда это произошло. По умолчанию — сейчас"
+  occurredAt: DateTime
+}
+
+input LongOperationFilterInput {
+  eq: Long @cost(weight: "10")
+  neq: Long @cost(weight: "10")
+  in: [Long] @cost(weight: "10")
+  nin: [Long] @cost(weight: "10")
+  gt: Long @cost(weight: "10")
+  ngt: Long @cost(weight: "10")
+  gte: Long @cost(weight: "10")
+  ngte: Long @cost(weight: "10")
+  lt: Long @cost(weight: "10")
+  nlt: Long @cost(weight: "10")
+  lte: Long @cost(weight: "10")
+  nlte: Long @cost(weight: "10")
+}
+
+input MoveDealStageInput {
+  dealId: Int!
+  stage: DealStage!
+  "Причина проигрыша — обязательна для LOST"
+  lostReason: String
+}
+
+input StringOperationFilterInput {
+  and: [StringOperationFilterInput!]
+  or: [StringOperationFilterInput!]
+  eq: String @cost(weight: "10")
+  neq: String @cost(weight: "10")
+  contains: String @cost(weight: "20")
+  ncontains: String @cost(weight: "20")
+  in: [String] @cost(weight: "10")
+  nin: [String] @cost(weight: "10")
+  startsWith: String @cost(weight: "20")
+  nstartsWith: String @cost(weight: "20")
+  endsWith: String @cost(weight: "20")
+  nendsWith: String @cost(weight: "20")
+}
+
+input UpdateDealInput {
+  dealId: Int!
+  title: String
+  "Новая сумма в рублях"
+  amount: Decimal
+  expectedCloseDate: LocalDate
+  "true — убрать ожидаемую дату закрытия"
+  clearExpectedCloseDate: Boolean! = false
+}
+
+input UpdateTaskInput {
+  taskId: Int!
+  title: String
+  "Новый срок, не раньше сегодняшнего дня"
+  dueDate: LocalDate
+  details: String
+}
+
+input UserFilterInput {
+  and: [UserFilterInput!]
+  or: [UserFilterInput!]
+  id: IntOperationFilterInput
+  fullName: StringOperationFilterInput
+  email: StringOperationFilterInput
+  role: UserRoleOperationFilterInput
+}
+
+input UserRoleOperationFilterInput {
+  eq: UserRole @cost(weight: "10")
+  neq: UserRole @cost(weight: "10")
+  in: [UserRole!] @cost(weight: "10")
+  nin: [UserRole!] @cost(weight: "10")
+}
+
+input UserSortInput {
+  id: SortEnumType @cost(weight: "10")
+  fullName: SortEnumType @cost(weight: "10")
+  email: SortEnumType @cost(weight: "10")
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  NOTE
+  STAGE_CHANGE
+}
+
+"Defines when a policy shall be executed."
+enum ApplyPolicy {
+  "Before the resolver was executed."
+  BEFORE_RESOLVER
+  "After the resolver was executed."
+  AFTER_RESOLVER
+  "The policy is applied in the validation step before the execution."
+  VALIDATION
+}
+
+enum DealStage {
+  LEAD
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum LoggableActivityType {
+  CALL
+  EMAIL
+  MEETING
+  NOTE
+}
+
+enum OpenDealStage {
+  LEAD
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+}
+
+enum SortEnumType {
+  ASC
+  DESC
+}
+
+enum TaskFilter {
+  OPEN
+  OVERDUE
+  TODAY
+  WEEK
+}
+
+enum UserRole {
+  MANAGER
+  ADMIN
+}
+
+"The `DateTime` scalar type represents a date and time with time zone offset information."
+scalar DateTime
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/date-time.html")
+
+"The `Decimal` scalar type represents a decimal floating-point number with high precision."
+scalar Decimal
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/decimal.html")
+
+"The `LocalDate` scalar type represents a date without time or time zone information."
+scalar LocalDate
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/local-date.html")
+
+"The `Long` scalar type represents a signed 64-bit integer."
+scalar Long
+  @specifiedBy(url: "https://scalars.graphql.org/chillicream/long.html")
+
+"The purpose of the `cost` directive is to define a `weight` for GraphQL types, fields, and arguments. Static analysis can use these weights when calculating the overall cost of a query or response."
+directive @cost(
+  "The `weight` argument defines what value to add to the overall cost for every appearance, or possible appearance, of a type, field, argument, etc."
+  weight: String!
+) on
+  | SCALAR
+  | OBJECT
+  | FIELD_DEFINITION
+  | ARGUMENT_DEFINITION
+  | ENUM
+  | INPUT_FIELD_DEFINITION
+
+"The purpose of the `@listSize` directive is to either inform the static analysis about the size of returned lists (if that information is statically available), or to point the analysis to where to find that information."
+directive @listSize(
+  "The `assumedSize` argument can be used to statically define the maximum length of a list returned by a field."
+  assumedSize: Int
+  "The `slicingArguments` argument can be used to define which of the field's arguments with numeric type are slicing arguments, so that their value determines the size of the list returned by that field. It may specify a list of multiple slicing arguments."
+  slicingArguments: [String!]
+  "The `slicingArgumentDefaultValue` argument can be used to define a default value for a slicing argument, which is used if the argument is not present in a query."
+  slicingArgumentDefaultValue: Int
+  "The `sizedFields` argument can be used to define that the value of the `assumedSize` argument or of a slicing argument does not affect the size of a list returned by a field itself, but that of a list returned by one of its sub-fields."
+  sizedFields: [String!]
+  "The `requireOneSlicingArgument` argument can be used to inform the static analysis that it should expect that exactly one of the defined slicing arguments is present in a query. If that is not the case (i.e., if none or multiple slicing arguments are present), the static analysis may throw an error."
+  requireOneSlicingArgument: Boolean = true
+) on FIELD_DEFINITION

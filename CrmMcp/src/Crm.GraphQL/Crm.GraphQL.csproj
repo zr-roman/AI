@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Неявные using от пакетов Hot Chocolate выключены: в каждом файле видно, откуда берётся тип -->
+    <HotChocolateImplicitUsings>disable</HotChocolateImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Библиотека-адаптер для ASP.NET Core хоста, как Crm.Mcp для MCP -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Crm.Core\Crm.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HotChocolate.AspNetCore" />
+    <!-- [Authorize] на полях и типах поверх ASP.NET Core: роли, политики -->
+    <PackageReference Include="HotChocolate.AspNetCore.Authorization" />
+    <!-- Фильтрация и сортировка: where/order транслируются в SQL через IQueryable -->
+    <PackageReference Include="HotChocolate.Data" />
+    <!-- Source generator: [QueryType], [ObjectType<T>], [DataLoader] → регистрация типов и классы DataLoader -->
+    <PackageReference Include="HotChocolate.Types.Analyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

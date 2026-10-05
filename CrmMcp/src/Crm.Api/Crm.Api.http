@@ -78,3 +78,107 @@ Content-Type: application/json
 Accept: application/json, text/event-stream
 
 {"jsonrpc": "2.0", "id": 3, "method": "tools/list"}
+
+### GraphQL: кто я и сводка по воронке
+POST {{host}}/graphql
+Authorization: Bearer {{key}}
+Content-Type: application/json
+
+{"query": "{ me { fullName role } pipeline { openCount openAmount weightedForecast stages { stage count amount } } }"}
+
+### GraphQL: сделки с фильтром, сортировкой и связями. Ответственные и контакты грузятся через DataLoader — без N+1.
+# first задан литералом: если передать его переменной, cost analysis оценит запрос по максимальному размеру страницы (50)
+POST {{host}}/graphql
+Authorization: Bearer {{key}}
+Content-Type: application/json
+
+{
+  "query": "query Deals($stages: [DealStage!]) { deals(first: 2, where: { stage: { in: $stages } }, order: [{ amount: DESC }]) { totalCount nodes { id title amount stage weightedAmount owner { fullName } contact { fullName company { name } } tasks { title dueDate isOverdue } } pageInfo { hasNextPage endCursor } } }",
+  "variables": { "stages": ["PROPOSAL", "NEGOTIATION"] }
+}
+
+### GraphQL: следующая страница — подставь endCursor из предыдущего ответа. Фильтр и сортировка должны быть те же
+POST {{host}}/graphql
+Authorization: Bearer {{key}}
+Content-Type: application/json
+
+{
+  "query": "query Deals($stages: [DealStage!], $after: String) { deals(first: 2, after: $after, where: { stage: { in: $stages } }, order: [{ amount: DESC }]) { nodes { id title amount } pageInfo { hasNextPage endCursor } } }",
+  "variables": { "stages": ["PROPOSAL", "NEGOTIATION"], "after": "<endCursor>" }
+}
+
+### GraphQL: фильтр по связанной сущности — сделки компаний из логистики, где ответственная Анна
+POST {{host}}/graphql
+Authorization: Bearer {{key}}
+Content-Type: application/json
+
+{"query": "{ deals(where: { company: { industry: { eq: \"Логистика\" } }, owner: { email: { startsWith: \"anna\" } } }) { nodes { title stage company { name } } } }"}
+
+### GraphQL: поиск контактов без учёта регистра — тот же сервис, что у REST и MCP
+POST {{host}}/graphql
+Authorization: Bearer {{key}}
+Content-Type: application/json
+
+{"query": "{ searchContacts(query: \"петров\") { id fullName position company { name } } }"}
+
+### GraphQL: карточка контакта — компания, открытые сделки, история и задачи одним запросом
+POST {{host}}/graphql
+Authorization: Bearer {{key}}
+Content-Type: application/json
+
+{"query": "{ contact(id: 1) { fullName position email company { name industry } deals { title stage amount } activities { type subject occurredAt author { fullName } } tasks { title dueDate isOverdue } } }"}
+
+### GraphQL: создать сделку. Ошибки бизнес-логики придут в errors, а не исключением
+POST {{host}}/graphql
+Authorization: Bearer {{key}}
+Content-Type: application/json
+
+{
+  "query": "mutation CreateDeal($input: CreateDealInput!) { createDeal(input: $input) { deal { id title stage owner { fullName } company { name } } errors { __typename ... on Error { message } } } }",
+  "variables": { "input": { "title": "Поставка оборудования для склада", "amount": 500000, "contactId": 1, "stage": "QUALIFIED" } }
+}
+
+### GraphQL: перевод в LOST без причины → ValidationError в payload
+POST {{host}}/graphql
+Authorization: Bearer {{key}}
+Content-Type: application/json
+
+{"query": "mutation { moveDealStage(input: { dealId: 1, stage: LOST }) { deal { stage } errors { __typename ... on Error { message } } } }"}
+
+### GraphQL: менеджер меняет чужую сделку → ForbiddenError (сделка #1 закреплена за Анной)
+POST {{host}}/graphql
+Authorization: Bearer boris-dev-key
+Content-Type: application/json
+
+{"query": "mutation { updateDeal(input: { dealId: 1, amount: 1 }) { deal { amount } errors { __typename ... on Error { message } } } }"}
+
+### GraphQL: аудит только для администратора — у менеджера AUTH_NOT_AUTHORIZED, а me выполнится
+POST {{host}}/graphql
+Authorization: Bearer boris-dev-key
+Content-Type: application/json
+
+{"query": "{ me { fullName } auditLog(first: 5) { nodes { operation succeeded user { fullName } } } }"}
+
+### GraphQL: стоимость запроса без выполнения (cost analysis). 50 контактов × сделки × история × автор: fieldCost больше 200 000 при лимите 1000.
+# Без заголовка GraphQL-Cost этот же запрос отклоняется с кодом HC0047 ещё до обращения к БД
+POST {{host}}/graphql
+Authorization: Bearer {{key}}
+Content-Type: application/json
+GraphQL-Cost: validate
+
+{"query": "{ contacts(first: 50) { nodes { deals { activities { author { fullName } } } } } }"}
+
+### GraphQL: без API-ключа → 401, как у /api и /mcp
+POST {{host}}/graphql
+Content-Type: application/json
+
+{"query": "{ me { fullName } }"}
+
+### GraphQL-подписка через SSE: соединение остаётся открытым. Удобнее из консоли:
+# curl -N http://localhost:5080/graphql -H "Authorization: Bearer anna-dev-key" -H "Content-Type: application/json" -H "Accept: text/event-stream" -d "{\"query\":\"subscription { onDealStageChanged { previousStage stage changedBy { fullName } deal { title } } }\"}"
+# а в другом окне переведи сделку запросом ниже.
+POST {{host}}/graphql
+Authorization: Bearer {{key}}
+Content-Type: application/json
+
+{"query": "mutation { moveDealStage(input: { dealId: 1, stage: NEGOTIATION }) { deal { stage stageChangedAt } errors { __typename ... on Error { message } } } }"}

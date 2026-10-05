@@ -8,3 +8,6 @@ obj/
 *.swp
 TestResults/
 publish/
+
+# Снимок схемы, который пишет SchemaTests при расхождении с эталоном
+*.received.graphql

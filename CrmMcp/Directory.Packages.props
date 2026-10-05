@@ -8,6 +8,7 @@
     <McpSdkVersion>2.2.0</McpSdkVersion>
     <EfCoreVersion>10.0.12</EfCoreVersion>
     <AspNetCoreVersion>10.0.12</AspNetCoreVersion>
+    <HotChocolateVersion>16.6.7</HotChocolateVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- MCP C# SDK -->
@@ -28,5 +29,15 @@
     <PackageVersion Include="ModelContextProtocol.Core" Version="$(McpSdkVersion)" />
     <PackageVersion Include="Anthropic" Version="12.53.0" />
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.0" />
+    <!-- GraphQL: Hot Chocolate 16 (сервер, авторизация, фильтрация/сортировка, source generator) -->
+    <PackageVersion Include="HotChocolate.AspNetCore" Version="$(HotChocolateVersion)" />
+    <PackageVersion Include="HotChocolate.AspNetCore.Authorization" Version="$(HotChocolateVersion)" />
+    <PackageVersion Include="HotChocolate.Data" Version="$(HotChocolateVersion)" />
+    <PackageVersion Include="HotChocolate.Types.Analyzers" Version="$(HotChocolateVersion)" />
+    <!-- Тесты: xUnit v3 + WebApplicationFactory (весь HTTP-конвейер Crm.Api в памяти, без сети) -->
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="$(AspNetCoreVersion)" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
   </ItemGroup>
 </Project>

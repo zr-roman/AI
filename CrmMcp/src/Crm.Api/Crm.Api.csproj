@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Crm.Mcp\Crm.Mcp.csproj" />
+    <ProjectReference Include="..\Crm.GraphQL\Crm.GraphQL.csproj" />
   </ItemGroup>
 
   <ItemGroup>
