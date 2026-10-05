@@ -49,9 +49,10 @@ class ToolError(ReviewServerError):
 
     @property
     def symbol_not_found(self) -> bool:
-        # SymbolNotFoundException in RoslynReview.Core/Navigation/SymbolResolver.cs.
+        # SymbolNotFoundException in RoslynReview.Core/Navigation/SymbolResolver.cs. The .NET SDK may prefix
+        # the message with the tool name, so match anywhere in it.
         message = str(self)
-        return message.startswith("No symbol with id") or "is not a symbol id" in message
+        return "No symbol with id" in message or "is not a symbol id" in message
 
 
 def _client_info() -> Implementation:
