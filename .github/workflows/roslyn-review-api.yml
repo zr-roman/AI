@@ -1,0 +1,49 @@
+name: roslyn-review-api
+
+on:
+  push:
+    branches: [main]
+    paths: ["RoslynReviewApi/**", "RoslynReview/**", ".github/workflows/roslyn-review-api.yml"]
+  pull_request:
+    paths: ["RoslynReviewApi/**", "RoslynReview/**", ".github/workflows/roslyn-review-api.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: RoslynReviewApi
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: uv sync --locked
+
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Unit tests (fake MCP server)
+        run: uv run pytest -m "not e2e"
+
+      # The same API against the real .NET server and the SampleShop fixture.
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build RoslynReview
+        working-directory: RoslynReview
+        run: |
+          dotnet build src/RoslynReview.McpServer --configuration Release
+          dotnet restore tests/fixtures/SampleShop/SampleShop.slnx
+
+      - name: End-to-end tests
+        env:
+          ROSLYN_REVIEW_E2E_SERVER: ${{ github.workspace }}/RoslynReview/src/RoslynReview.McpServer/bin/Release/net10.0/RoslynReview.McpServer.dll
+        run: uv run pytest -m e2e -rs
