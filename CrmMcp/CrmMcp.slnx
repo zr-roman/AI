@@ -3,7 +3,11 @@
     <Project Path="src/Crm.Agent/Crm.Agent.csproj" />
     <Project Path="src/Crm.Api/Crm.Api.csproj" />
     <Project Path="src/Crm.Core/Crm.Core.csproj" />
+    <Project Path="src/Crm.GraphQL/Crm.GraphQL.csproj" />
     <Project Path="src/Crm.Mcp.Stdio/Crm.Mcp.Stdio.csproj" />
     <Project Path="src/Crm.Mcp/Crm.Mcp.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Crm.GraphQL.Tests/Crm.GraphQL.Tests.csproj" />
   </Folder>
 </Solution>

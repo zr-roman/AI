@@ -5,6 +5,7 @@ using Crm.Api.Endpoints;
 using Crm.Core;
 using Crm.Core.Data;
 using Crm.Core.Services;
+using Crm.GraphQL;
 using Crm.Mcp;
 using Microsoft.AspNetCore.Authentication;
 using ModelContextProtocol.AspNetCore;
@@ -38,18 +39,24 @@ builder.Services
     // Включает [Authorize] на инструментах: недоступные инструменты пропадают из tools/list
     .AddAuthorizationFilters();
 
+// Третий адаптер над теми же сервисами: GraphQL на Hot Chocolate (src/Crm.GraphQL)
+builder.Services.AddCrmGraphQL();
+
 var app = builder.Build();
 
 await app.Services.InitializeCrmDatabaseAsync();
 
 app.UseExceptionHandler();
+// Транспорт для GraphQL-подписок по WebSocket
+app.UseWebSockets();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/", () => "CRM MCP server. MCP: POST /mcp, REST: /api/*");
+app.MapGet("/", () => "CRM MCP server. MCP: POST /mcp, REST: /api/*, GraphQL: /graphql (IDE: /graphql/ui)");
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.MapCrmApi();
 app.MapMcp("/mcp").RequireAuthorization();
+app.MapCrmGraphQL();
 
 app.Run();
