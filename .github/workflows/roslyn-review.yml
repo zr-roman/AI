@@ -1,0 +1,29 @@
+name: roslyn-review
+
+on:
+  push:
+    branches: [main]
+    paths: ["RoslynReview/**", ".github/workflows/roslyn-review.yml"]
+  pull_request:
+    paths: ["RoslynReview/**", ".github/workflows/roslyn-review.yml"]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: RoslynReview
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build --configuration Release
+
+      # Тесты сами восстанавливают фикстуру SampleShop и используют git для тестов диффов
+      - name: Test
+        run: dotnet test --configuration Release --no-build
